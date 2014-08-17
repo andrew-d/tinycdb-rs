@@ -6,5 +6,5 @@ tests.out
 tests-shared.ok
 
 # Built artifacts
-libcdb.a
+libcdb*.a
 cdb
