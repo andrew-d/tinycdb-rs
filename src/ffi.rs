@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
 pub mod ffi {
-    use libc::{c_char, c_int, c_uchar, c_uint, c_void};
+    use libc::{c_int, c_uchar, c_uint, c_void};
 
     pub struct cdb {
         // File descriptor
@@ -80,11 +80,13 @@ pub mod ffi {
         cdb_rec: [*mut c_void, ..256],
     }
 
-    pub static CDB_PUT_ADD: c_uint = 0;
-    pub static CDB_PUT_REPLACE: c_uint = 1;
-    pub static CDB_PUT_INSERT: c_uint = 2;
-    pub static CDB_PUT_WARN: c_uint = 3;
-    pub static CDB_PUT_REPLACE0: c_uint = 4;
+    type cdb_put_mode = c_uint;
+
+    pub static CDB_PUT_ADD: cdb_put_mode = 0;
+    pub static CDB_PUT_REPLACE: cdb_put_mode = 1;
+    pub static CDB_PUT_INSERT: cdb_put_mode = 2;
+    pub static CDB_PUT_WARN: cdb_put_mode = 3;
+    pub static CDB_PUT_REPLACE0: cdb_put_mode = 4;
 
     pub static CDB_FIND: c_uint = 0;            // == CDB_PUT_ADD
     pub static CDB_FIND_REMOVE: c_uint = 1;     // == CDB_PUT_REPLACE
@@ -99,10 +101,14 @@ pub mod ffi {
         pub fn cdb_get(cdbp: *const cdb, len: c_uint, pos: c_uint) -> *const c_void;
 
         pub fn cdb_find(cdbp: *mut cdb, key: *const c_void, klen: c_uint) -> c_int;
-        pub fn cdb_findinit(cdbfp: *mut cdb_find, cdb: *mut cdb,
-                            key: *const c_void, klen: c_uint) -> c_int;
+        pub fn cdb_findinit(cdbfp: *mut cdb_find, cdb: *mut cdb, key: *const c_void, klen: c_uint) -> c_int;
         pub fn cdb_findnext(cdbfp: *mut cdb_find) -> c_int;
 
-
+        pub fn cdb_make_start(cdbmp: *mut cdb_make, fd: c_int) -> c_int;
+        pub fn cdb_make_add(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, val: *const c_void, vlen: c_uint) -> c_int;
+        pub fn cdb_make_exists(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint) -> c_int;
+        pub fn cdb_make_find(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, mode: cdb_put_mode) -> c_int;
+        pub fn cdb_make_put(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, val: *const c_void, vlen: c_uint, mode: cdb_put_mode) -> c_int;
+        pub fn cdb_make_finish(cdbmp: *mut cdb_make) -> c_int;
     }
 }

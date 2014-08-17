@@ -1,11 +1,10 @@
 use std;
-use std::mem;
 use std::os::errno;
 
-use libc;
 use libc::{c_int, c_uint, c_void};
 use libc::funcs::posix88::fcntl::open;
-use libc::consts::os::posix88::{O_CREAT, O_RDONLY, O_RDWR};
+use libc::funcs::posix88::unistd::close;
+use libc::consts::os::posix88::{O_CREAT, O_EXCL, O_RDONLY, O_RDWR};
 
 use ffi::ffi;
 
@@ -30,9 +29,11 @@ impl CdbError {
 
 pub struct Cdb {
     cdb: ffi::cdb,
+    fd: c_int,
 }
 
 impl Cdb {
+    /// Open an existing CDB file
     pub fn open(path: &str) -> Result<Cdb, CdbError> {
         let fd = path.with_c_str(|path| unsafe {
             open(path, O_RDONLY, 0)
@@ -50,13 +51,43 @@ impl Cdb {
 
         Ok(Cdb{
             cdb: cdb,
+            fd: fd,
         })
     }
 
+    /// Create a new CDB file.  The given closure is called with an instance
+    /// of a 'CdbCreator', allowing the closure to insert values into the CDB
+    /// database.  Once the closure returns, the database can no longer be
+    /// updated.  The database instance is then returned.
+    pub fn new(path: &str, create: |&mut CdbCreator|) -> Result<Cdb, CdbError> {
+        // This is its own scope because we want it to be closed before trying
+        // to re-open it below.
+        {
+            // TODO: create as temp file
+            let mut creator = match CdbCreator::new(path) {
+                Ok(c) => c,
+                Err(r) => return Err(r),
+            };
+
+            // Call the creation function
+            create(&mut creator);
+
+            // Finalize the database.
+            creator.finalize();
+        }
+
+        // TODO: rename into place
+
+        // Delegate to the real 'open' function.
+        Cdb::open(path)
+    }
+
+    #[inline]
     fn cdb_ptr(&self) -> *const ffi::cdb {
         &self.cdb as *const ffi::cdb
     }
 
+    #[inline]
     fn cdb_mut_ptr(&mut self) -> *mut ffi::cdb {
         &mut self.cdb as *mut ffi::cdb
     }
@@ -73,19 +104,112 @@ impl Cdb {
             return None
         }
 
-        let ret = Vec::with_capacity(self.cdb.cdb_datalen() as uint);
+        let mut ret = Vec::with_capacity(self.cdb.cdb_datalen() as uint);
 
-        // TODO: Pretty sure this never returns an error...
         unsafe {
+            // TODO: Pretty sure this never returns an error...
             ffi::cdb_read(
                 self.cdb_ptr(),
                 ret.as_ptr() as *mut c_void,
                 self.cdb.cdb_datalen(),
                 self.cdb.cdb_datapos()
-            )
-        };
+            );
+
+            ret.set_len(self.cdb.cdb_datalen() as uint);
+        }
 
         Some(ret)
+    }
+}
+
+impl Drop for Cdb {
+    fn drop(&mut self) {
+        unsafe { close(self.fd) };
+    }
+}
+
+pub struct CdbCreator {
+    cdbm: ffi::cdb_make,
+    fd: c_int,
+}
+
+/// This structure contains methods that can be used while creating a new CDB.
+impl CdbCreator {
+    // Note: deliberately private
+    fn new(path: &str) -> Result<CdbCreator, CdbError> {
+        let fd = path.with_c_str(|path| unsafe {
+            // TODO: allow changing this mode
+            open(path, O_RDWR|O_CREAT|O_EXCL, 0o644)
+        });
+
+        if fd < 0 {
+            return Err(CdbError::new(errno() as c_int));
+        }
+
+        let mut cdbm: ffi::cdb_make = unsafe { std::mem::zeroed() };
+        let err = unsafe {
+            ffi::cdb_make_start(&mut cdbm as *mut ffi::cdb_make, fd)
+        };
+        if err < 0 {
+            return Err(CdbError::new(errno() as c_int));
+        }
+
+        Ok(CdbCreator{
+            cdbm: cdbm,
+            fd: fd,
+        })
+    }
+
+    /*
+    fn cdbm_ptr(&self) -> *const ffi::cdb_make {
+        &self.cdbm as *const ffi::cdb_make
+    }
+    */
+
+    #[inline]
+    fn cdbm_mut_ptr(&mut self) -> *mut ffi::cdb_make {
+        &mut self.cdbm as *mut ffi::cdb_make
+    }
+
+    fn finalize(&mut self) {
+        unsafe { ffi::cdb_make_finish(self.cdbm_mut_ptr()); }
+    }
+
+    pub fn add(&mut self, key: &[u8], val: &[u8]) -> Result<(), CdbError> {
+        let res = unsafe {
+            ffi::cdb_make_add(
+                self.cdbm_mut_ptr(),
+                key.as_ptr() as *const c_void,
+                key.len() as c_uint,
+                val.as_ptr() as *const c_void,
+                val.len() as c_uint,
+            )
+        };
+        match res {
+            x if x < 0 => Err(CdbError::new(errno() as c_int)),
+            _          => Ok(()),
+        }
+    }
+
+    pub fn exists(&mut self, key: &[u8]) -> Result<bool, CdbError> {
+        let res = unsafe {
+            ffi::cdb_make_exists(
+                self.cdbm_mut_ptr(),
+                key.as_ptr() as *const c_void,
+                key.len() as c_uint,
+            )
+        };
+        match res {
+            x if x < 0  => Err(CdbError::new(errno() as c_int)),
+            x if x == 0 => Ok(false),
+            _           => Ok(true),
+        }
+    }
+}
+
+impl Drop for CdbCreator {
+    fn drop(&mut self) {
+        unsafe { close(self.fd) };
     }
 }
 
@@ -123,35 +247,134 @@ mod tests {
         };
     }
 
-    fn with_test_file(input: &[u8], name: &str, f: |&str|) {
-        let p = Path::new(name);
-
-        decompress_and_write(input, &p);
-        f(p.as_str().unwrap());
-        match fs::unlink(&p) {
-            Err(why) => println!("Couldn't remove temp file: {}", why),
-            Ok(_) => {},
-        };
+    // Helper to remove test files after a test is finished, even if the test
+    // fail!()s
+    struct RemovingPath {
+        underlying: Path,
     }
 
+    impl RemovingPath {
+        pub fn new(p: Path) -> RemovingPath {
+            RemovingPath {
+                underlying: p,
+            }
+        }
+
+        pub fn as_str(&self) -> &str {
+            // Want to fail here, if we're in a test
+            self.underlying.as_str().unwrap()
+        }
+    }
+
+    impl Drop for RemovingPath {
+        fn drop(&mut self) {
+            match fs::unlink(&self.underlying) {
+                Err(why) => println!("Couldn't remove temp file: {}", why),
+                Ok(_) => {},
+            };
+        }
+    }
+
+    fn with_remove_file(name: &str, f: |&str|) {
+        let p = RemovingPath::new(Path::new(name));
+        f(p.as_str());
+    }
+
+    fn with_test_file(input: &[u8], name: &str, f: |&str|) {
+        with_remove_file(name, |name| {
+            let p = Path::new(name);
+            decompress_and_write(input, &p);
+            f(name);
+        });
+    }
+
+    // Simple compressed/base64'd CDB that contains the key/values:
+    //      "one" --> "Hello"
+    //      "two" --> "Goodbye"
     static HelloCDB: &'static [u8] = (
         b"7dIxCoAwDAXQoohCF8/QzdUjuOgdXETMVswiiKNTr20qGdydWn7g8/ghY1xj3nHwt4XY\
           a4cwNeP/DtohhPlbSioJ7zSR9xx7LTlOHpm39aJuCbbV6+/cc7BG9g8="
     );
 
     #[test]
-    fn test_basic_open() {
+    fn test_basic_find() {
+        let mut ran = false;
+
         with_test_file(HelloCDB, "basic.cdb", |path| {
-            let c = match Cdb::open(path) {
-                Err(why) => fail!("Could not open CDB"),
+            let mut c = match Cdb::open(path) {
+                Err(why) => fail!("Could not open CDB: {}", why.get_code()),
                 Ok(c) => c,
             };
-            let res = match c.find("one".as_bytes()) {
+            let res = match c.find(b"one") {
                 None => fail!("Could not find 'one' in CDB"),
                 Some(val) => val,
             };
 
-            assert!(res.as_slice(), "Hello".as_slice());
+            assert_eq!(res.as_slice(), b"Hello");
+            ran = true;
         });
+
+        assert!(ran);
+    }
+
+    #[test]
+    fn test_find_not_found() {
+        with_test_file(HelloCDB, "notfound.cdb", |path| {
+            let mut c = match Cdb::open(path) {
+                Err(why) => fail!("Could not open CDB: {}", why.get_code()),
+                Ok(c) => c,
+            };
+            match c.find("bad".as_bytes()) {
+                None => {}
+                Some(val) => fail!("Found unexpected value: {}", val),
+            };
+        });
+    }
+
+    #[test]
+    fn test_simple_create() {
+        let mut ran = false;
+
+        let path = "simple_create.cdb";
+        let _rem = RemovingPath::new(Path::new(path));
+
+        let c = Cdb::new(path, |_creator| {
+            ran = true;
+        });
+
+        match c {
+            Ok(_) => {},
+            Err(why) => fail!("Could not create: {}", why.get_code()),
+        }
+
+        assert!(ran);
+    }
+
+    #[test]
+    fn test_add() {
+        let path = "add.cdb";
+        let _rem = RemovingPath::new(Path::new(path));
+
+        let res = Cdb::new(path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+
+            match creator.exists(b"foo") {
+                Ok(v) => assert!(v),
+                Err(why) => fail!("Could not check: {}", why.get_code()),
+            }
+        });
+
+        let mut c = match res {
+            Ok(c) => c,
+            Err(why) => fail!("Could not create: {}", why.get_code()),
+        };
+
+        let res = match c.find(b"foo") {
+            None => fail!("Could not find 'foo' in CDB"),
+            Some(val) => val,
+        };
+
+        assert_eq!(res.as_slice(), b"bar");
     }
 }
