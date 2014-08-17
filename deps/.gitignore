@@ -1,0 +1,10 @@
+# Ignores for tinycdb
+*.o
+*.lo
+core
+tests.out
+tests-shared.ok
+
+# Built artifacts
+libcdb.a
+cdb
