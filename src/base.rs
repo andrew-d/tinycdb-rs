@@ -255,6 +255,62 @@ impl CdbCreator {
             _           => Ok(true),
         }
     }
+
+    /**
+     * `remove(key)` will remove the given key from the database.  If the
+     * `zero` parameter is true, then an existing key/value pair will be zeroed
+     * out in the database.  This prevents it from being found in normal lookups,
+     * but it will still be present in sequential scans of the database.  If
+     * the `zero` parameter is false, then the entire record will be removed
+     * from the database.  Note, however, that removing a record also involves
+     * moving other records in the database, and may take much longer to
+     * complete.
+     * Note that a `remove()` of the most recently-added key, regardless of the
+     * the `zero` parameter, will always remove it from the database entirely.
+     * The return value from this function indicates whether or not any keys
+     * were removed.
+     */
+    pub fn remove(&mut self, key: &[u8], zero: bool) -> Result<bool, CdbError> {
+        let mode = if zero { ffi::Fill0 } else { ffi::Remove };
+        let res = unsafe {
+            ffi::cdb_make_find(
+                self.cdbm_mut_ptr(),
+                key.as_ptr() as *const c_void,
+                key.len() as c_uint,
+                mode,
+            )
+        };
+        match res {
+            x if x < 0  => Err(CdbError::new(errno() as c_int)),
+            x if x == 0 => Ok(false),
+            _           => Ok(true),
+        }
+    }
+
+    /**
+     * `put(key, val, mode)` will add a new key to the database, with a
+     * configurable behaviour if the key already exists.  See the documentation
+     * on `CdbPutMode` for more information on the options available.
+     * The return value from this function indicates whether or not any existing
+     * keys were found in the database during the put operation.
+     */
+    pub fn put(&mut self, key: &[u8], val: &[u8], mode: CdbPutMode) -> Result<bool, CdbError> {
+        let res = unsafe {
+            ffi::cdb_make_put(
+                self.cdbm_mut_ptr(),
+                key.as_ptr() as *const c_void,
+                key.len() as c_uint,
+                val.as_ptr() as *const c_void,
+                val.len() as c_uint,
+                mode,
+            )
+        };
+        match res {
+            x if x < 0  => Err(CdbError::new(errno() as c_int)),
+            x if x == 0 => Ok(false),
+            _           => Ok(true),
+        }
+    }
 }
 
 impl Drop for CdbCreator {
