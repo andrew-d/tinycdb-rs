@@ -3,6 +3,7 @@
 pub mod ffi {
     use libc::{c_int, c_uchar, c_uint, c_void};
 
+    #[repr(C)]
     pub struct cdb {
         // File descriptor
         pub cdb_fd: c_int,
@@ -48,6 +49,7 @@ pub mod ffi {
         }
     }
 
+    #[repr(C)]
     pub struct cdb_find {
         cdb_cdbp: *mut cdb,
         cdb_hval: c_uint,
@@ -59,6 +61,7 @@ pub mod ffi {
         cdb_klen: c_uint,
     }
 
+    #[repr(C)]
     pub struct cdb_make {
         // File descriptor
         pub cdb_fd: c_int,
