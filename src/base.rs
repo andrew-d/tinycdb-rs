@@ -1,5 +1,5 @@
 use std;
-use std::os::errno;
+use std::io::IoError;
 
 use libc::{c_int, c_uint, c_void};
 use libc::funcs::posix88::fcntl::open;
@@ -12,25 +12,6 @@ pub use ffi::ffi::CdbPutMode;
 
 use ffi::ffi;
 
-pub struct CdbError {
-    code: c_int,
-    cause: String,
-}
-
-impl CdbError {
-    pub fn new(code: c_int) -> CdbError {
-        CdbError {
-            code: code,
-            cause: String::from_str("TODO"),
-        }
-    }
-
-    #[inline]
-    pub fn get_code(&self) -> c_int {
-        self.code
-    }
-}
-
 pub struct Cdb {
     cdb: ffi::cdb,
     fd: c_int,
@@ -42,13 +23,13 @@ impl Cdb {
      * returning either the `CDB` struct or an error indicating why the
      * database could not be opened.
      */
-    pub fn open(path: &str) -> Result<Box<Cdb>, CdbError> {
+    pub fn open(path: &str) -> Result<Box<Cdb>, IoError> {
         let fd = path.with_c_str(|path| unsafe {
             open(path, O_RDONLY, 0)
         });
 
         if fd < 0 {
-            return Err(CdbError::new(errno() as c_int));
+            return Err(IoError::last_error());
         }
 
         let mut ret = box Cdb {
@@ -58,7 +39,7 @@ impl Cdb {
 
         let err = unsafe { ffi::cdb_init(ret.cdb_mut_ptr(), fd) };
         if err < 0 {
-            return Err(CdbError::new(errno() as c_int));
+            return Err(IoError::last_error());
         }
 
         Ok(ret)
@@ -71,7 +52,7 @@ impl Cdb {
      * returns, the database can no longer be updated.  The now-open database
      * instance is then returned.
      */
-    pub fn new(path: &str, create: |&mut CdbCreator|) -> Result<Box<Cdb>, CdbError> {
+    pub fn new(path: &str, create: |&mut CdbCreator|) -> Result<Box<Cdb>, IoError> {
         // This is its own scope because we want it to be closed before trying
         // to re-open it below.
         {
@@ -174,14 +155,14 @@ pub struct CdbCreator {
 /// This structure contains methods that can be used while creating a new CDB.
 impl CdbCreator {
     // Note: deliberately private
-    fn new(path: &str) -> Result<Box<CdbCreator>, CdbError> {
+    fn new(path: &str) -> Result<Box<CdbCreator>, IoError> {
         let fd = path.with_c_str(|path| unsafe {
             // TODO: allow changing this mode
             open(path, O_RDWR|O_CREAT|O_EXCL, 0o644)
         });
 
         if fd < 0 {
-            return Err(CdbError::new(errno() as c_int));
+            return Err(IoError::last_error());
         }
 
         let mut ret = box CdbCreator {
@@ -193,7 +174,7 @@ impl CdbCreator {
             ffi::cdb_make_start(ret.cdbm_mut_ptr(), fd)
         };
         if err < 0 {
-            return Err(CdbError::new(errno() as c_int));
+            return Err(IoError::last_error());
         }
 
         Ok(ret)
@@ -220,7 +201,7 @@ impl CdbCreator {
      * the operation succeeded.  Note that if this call fails, it is unsafe to
      * continue building the database.
      */
-    pub fn add(&mut self, key: &[u8], val: &[u8]) -> Result<(), CdbError> {
+    pub fn add(&mut self, key: &[u8], val: &[u8]) -> Result<(), IoError> {
         let res = unsafe {
             ffi::cdb_make_add(
                 self.cdbm_mut_ptr(),
@@ -231,7 +212,7 @@ impl CdbCreator {
             )
         };
         match res {
-            x if x < 0 => Err(CdbError::new(errno() as c_int)),
+            x if x < 0 => Err(IoError::last_error()),
             _          => Ok(()),
         }
     }
@@ -241,7 +222,7 @@ impl CdbCreator {
      * Note that this may slow down creation, as it results in the underlying C
      * library flushing the internal buffer to disk on every call.
      */
-    pub fn exists(&mut self, key: &[u8]) -> Result<bool, CdbError> {
+    pub fn exists(&mut self, key: &[u8]) -> Result<bool, IoError> {
         let res = unsafe {
             ffi::cdb_make_exists(
                 self.cdbm_mut_ptr(),
@@ -250,7 +231,7 @@ impl CdbCreator {
             )
         };
         match res {
-            x if x < 0  => Err(CdbError::new(errno() as c_int)),
+            x if x < 0  => Err(IoError::last_error()),
             x if x == 0 => Ok(false),
             _           => Ok(true),
         }
@@ -270,7 +251,7 @@ impl CdbCreator {
      * The return value from this function indicates whether or not any keys
      * were removed.
      */
-    pub fn remove(&mut self, key: &[u8], zero: bool) -> Result<bool, CdbError> {
+    pub fn remove(&mut self, key: &[u8], zero: bool) -> Result<bool, IoError> {
         let mode = if zero { ffi::Fill0 } else { ffi::Remove };
         let res = unsafe {
             ffi::cdb_make_find(
@@ -281,7 +262,7 @@ impl CdbCreator {
             )
         };
         match res {
-            x if x < 0  => Err(CdbError::new(errno() as c_int)),
+            x if x < 0  => Err(IoError::last_error()),
             x if x == 0 => Ok(false),
             _           => Ok(true),
         }
@@ -294,7 +275,7 @@ impl CdbCreator {
      * The return value from this function indicates whether or not any existing
      * keys were found in the database during the put operation.
      */
-    pub fn put(&mut self, key: &[u8], val: &[u8], mode: CdbPutMode) -> Result<bool, CdbError> {
+    pub fn put(&mut self, key: &[u8], val: &[u8], mode: CdbPutMode) -> Result<bool, IoError> {
         let res = unsafe {
             ffi::cdb_make_put(
                 self.cdbm_mut_ptr(),
@@ -306,7 +287,7 @@ impl CdbCreator {
             )
         };
         match res {
-            x if x < 0  => Err(CdbError::new(errno() as c_int)),
+            x if x < 0  => Err(IoError::last_error()),
             x if x == 0 => Ok(false),
             _           => Ok(true),
         }
@@ -408,7 +389,7 @@ mod tests {
 
         with_test_file(HelloCDB, "basic.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => fail!("Could not open CDB: {}", why.get_code()),
+                Err(why) => fail!("Could not open CDB: {}", why),
                 Ok(c) => c,
             };
             let res = match c.find(b"one") {
@@ -427,7 +408,7 @@ mod tests {
     fn test_find_not_found() {
         with_test_file(HelloCDB, "notfound.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => fail!("Could not open CDB: {}", why.get_code()),
+                Err(why) => fail!("Could not open CDB: {}", why),
                 Ok(c) => c,
             };
             match c.find("bad".as_bytes()) {
@@ -450,7 +431,7 @@ mod tests {
 
         match c {
             Ok(_) => {},
-            Err(why) => fail!("Could not create: {}", why.get_code()),
+            Err(why) => fail!("Could not create: {}", why),
         }
 
         assert!(ran);
@@ -467,18 +448,18 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => fail!("Could not check: {}", why.get_code()),
+                Err(why) => fail!("Could not check: {}", why),
             }
 
             match creator.exists(b"notexisting") {
                 Ok(v) => assert!(!v),
-                Err(why) => fail!("Could not check: {}", why.get_code()),
+                Err(why) => fail!("Could not check: {}", why),
             }
         });
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => fail!("Could not create: {}", why.get_code()),
+            Err(why) => fail!("Could not create: {}", why),
         };
 
         let res = match c.find(b"foo") {
