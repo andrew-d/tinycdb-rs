@@ -6,6 +6,10 @@ use libc::funcs::posix88::fcntl::open;
 use libc::funcs::posix88::unistd::close;
 use libc::consts::os::posix88::{O_CREAT, O_EXCL, O_RDONLY, O_RDWR};
 
+// Re-export the private enums
+
+pub use ffi::ffi::CdbPutMode;
+
 use ffi::ffi;
 
 pub struct CdbError {
@@ -33,7 +37,11 @@ pub struct Cdb {
 }
 
 impl Cdb {
-    /// Open an existing CDB file
+    /**
+     * `open(path)` will open the CDB database at the given file path,
+     * returning either the `CDB` struct or an error indicating why the
+     * database could not be opened.
+     */
     pub fn open(path: &str) -> Result<Box<Cdb>, CdbError> {
         let fd = path.with_c_str(|path| unsafe {
             open(path, O_RDONLY, 0)
@@ -56,10 +64,13 @@ impl Cdb {
         Ok(ret)
     }
 
-    /// Create a new CDB file.  The given closure is called with an instance
-    /// of a 'CdbCreator', allowing the closure to insert values into the CDB
-    /// database.  Once the closure returns, the database can no longer be
-    /// updated.  The database instance is then returned.
+    /**
+     * `new(path, cb)` is responsible for creating a new CDB database.  The
+     * given closure is called with an instance of a `CdbCreator`, allowing the
+     * closure to insert values into the CDB database.  Once the closure
+     * returns, the database can no longer be updated.  The now-open database
+     * instance is then returned.
+     */
     pub fn new(path: &str, create: |&mut CdbCreator|) -> Result<Box<Cdb>, CdbError> {
         // This is its own scope because we want it to be closed before trying
         // to re-open it below.
@@ -93,6 +104,12 @@ impl Cdb {
         &mut self.cdb as *mut ffi::cdb
     }
 
+    /**
+     * `find(key)` searches the database for the given key, and, if it's found,
+     * will return the associated value as a `Vec<u8>`.  Note that, since it is
+     * possible to have multiple records with the same key, `find()` will only
+     * return the value of the first key.
+     */
     pub fn find(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         let res = unsafe {
             ffi::cdb_find(
@@ -177,6 +194,12 @@ impl CdbCreator {
         unsafe { ffi::cdb_make_finish(self.cdbm_mut_ptr()); }
     }
 
+    /**
+     * `add(key, val)` adds the given key/value pair to the database, silently
+     * overwriting any previously-existing value.  It returns whether or not
+     * the operation succeeded.  Note that if this call fails, it is unsafe to
+     * continue building the database.
+     */
     pub fn add(&mut self, key: &[u8], val: &[u8]) -> Result<(), CdbError> {
         let res = unsafe {
             ffi::cdb_make_add(
@@ -193,6 +216,11 @@ impl CdbCreator {
         }
     }
 
+    /**
+     * `exists(key)` checks whether the given key exists within the database.
+     * Note that this may slow down creation, as it results in the underlying C
+     * library flushing the internal buffer to disk on every call.
+     */
     pub fn exists(&mut self, key: &[u8]) -> Result<bool, CdbError> {
         let res = unsafe {
             ffi::cdb_make_exists(

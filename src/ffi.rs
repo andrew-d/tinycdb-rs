@@ -83,18 +83,50 @@ pub mod ffi {
         cdb_rec: [*mut c_void, ..256],
     }
 
-    type cdb_put_mode = c_uint;
+    #[repr(C)]
+    pub enum CdbPutMode {
+        /**
+         * No duplicate checking will be performed.  This is the same as just
+         * calling `add()`.
+         */
+        Add      = 0,
 
-    pub static CDB_PUT_ADD: cdb_put_mode = 0;
-    pub static CDB_PUT_REPLACE: cdb_put_mode = 1;
-    pub static CDB_PUT_INSERT: cdb_put_mode = 2;
-    pub static CDB_PUT_WARN: cdb_put_mode = 3;
-    pub static CDB_PUT_REPLACE0: cdb_put_mode = 4;
+        /**
+         * If the key already exists in the database, it will be removed prior
+         * to adding the new value.  This can be quite slow if the file is
+         * large, due to having to copy data around.
+         */
+        Replace  = 1,
 
-    pub static CDB_FIND: c_uint = 0;            // == CDB_PUT_ADD
-    pub static CDB_FIND_REMOVE: c_uint = 1;     // == CDB_PUT_REPLACE
-    pub static CDB_FIND_FILL0: c_uint = 4;      // == CDB_PUT_REPLACE0
+        /**
+         * Insert the key into the database only if the key does not already
+         * exist.  Note that since a simple query of the database only returns
+         * the first key, this is really only useful to save space in the
+         * database.
+         */
+        Insert   = 2,
 
+        /**
+         * Add the key to the database unconditionally, but also check if it
+         * already existed.
+         * TODO: what return value does put give?
+         */
+        Warn     = 3,
+
+        /**
+         * If the key already exists in the database, zero it out before adding
+         * this key/value pair.  See the comments on `remove()` for some
+         * caveats regarding zeroing out keys in the database.
+         */
+        Replace0 = 4,
+    }
+
+    #[repr(C)]
+    pub enum CdbFindMode {
+        Find   = 0,     // == CDB_PUT_ADD
+        Remove = 1,     // == CDB_PUT_REPLACE
+        Fill0  = 4,     // == CDB_PUT_REPLACE0
+    }
 
     #[link(name = "cdb", kind = "static")]
     extern "C" {
@@ -110,8 +142,8 @@ pub mod ffi {
         pub fn cdb_make_start(cdbmp: *mut cdb_make, fd: c_int) -> c_int;
         pub fn cdb_make_add(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, val: *const c_void, vlen: c_uint) -> c_int;
         pub fn cdb_make_exists(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint) -> c_int;
-        pub fn cdb_make_find(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, mode: cdb_put_mode) -> c_int;
-        pub fn cdb_make_put(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, val: *const c_void, vlen: c_uint, mode: cdb_put_mode) -> c_int;
+        pub fn cdb_make_find(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, mode: CdbFindMode) -> c_int;
+        pub fn cdb_make_put(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, val: *const c_void, vlen: c_uint, mode: CdbPutMode) -> c_int;
         pub fn cdb_make_finish(cdbmp: *mut cdb_make) -> c_int;
     }
 }
