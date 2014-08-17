@@ -138,6 +138,26 @@ impl Cdb {
 
         Some(ret)
     }
+
+    /**
+     * `exists(key)` returns whether the key exists in the database.  This is
+     * essentially the same as the `find(key)` call, except that it does not
+     * allocate space for the returned value, and thus may be faster.
+     */
+    pub fn exists(&mut self, key: &[u8]) -> bool {
+        let res = unsafe {
+            ffi::cdb_find(
+                self.cdb_mut_ptr(),
+                key.as_ptr() as *const c_void,
+                key.len() as c_uint,
+            )
+        };
+        if res <= 0 {
+            false
+        } else {
+            true
+        }
+    }
 }
 
 impl Drop for Cdb {
