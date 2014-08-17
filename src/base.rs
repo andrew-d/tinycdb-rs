@@ -457,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add() {
+    fn test_add_and_exists() {
         let path = "add.cdb";
         let _rem = RemovingPath::new(Path::new(path));
 
@@ -467,6 +467,11 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
+                Err(why) => fail!("Could not check: {}", why.get_code()),
+            }
+
+            match creator.exists(b"notexisting") {
+                Ok(v) => assert!(!v),
                 Err(why) => fail!("Could not check: {}", why.get_code()),
             }
         });
