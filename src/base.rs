@@ -34,7 +34,7 @@ pub struct Cdb {
 
 impl Cdb {
     /// Open an existing CDB file
-    pub fn open(path: &str) -> Result<Cdb, CdbError> {
+    pub fn open(path: &str) -> Result<Box<Cdb>, CdbError> {
         let fd = path.with_c_str(|path| unsafe {
             open(path, O_RDONLY, 0)
         });
@@ -43,23 +43,24 @@ impl Cdb {
             return Err(CdbError::new(errno() as c_int));
         }
 
-        let mut cdb: ffi::cdb = unsafe { std::mem::zeroed() };
-        let err = unsafe { ffi::cdb_init(&mut cdb as *mut ffi::cdb, fd) };
+        let mut ret = box Cdb {
+            fd: fd,
+            cdb: unsafe { std::mem::uninitialized() },
+        };
+
+        let err = unsafe { ffi::cdb_init(ret.cdb_mut_ptr(), fd) };
         if err < 0 {
             return Err(CdbError::new(errno() as c_int));
         }
 
-        Ok(Cdb{
-            cdb: cdb,
-            fd: fd,
-        })
+        Ok(ret)
     }
 
     /// Create a new CDB file.  The given closure is called with an instance
     /// of a 'CdbCreator', allowing the closure to insert values into the CDB
     /// database.  Once the closure returns, the database can no longer be
     /// updated.  The database instance is then returned.
-    pub fn new(path: &str, create: |&mut CdbCreator|) -> Result<Cdb, CdbError> {
+    pub fn new(path: &str, create: |&mut CdbCreator|) -> Result<Box<Cdb>, CdbError> {
         // This is its own scope because we want it to be closed before trying
         // to re-open it below.
         {
@@ -70,7 +71,7 @@ impl Cdb {
             };
 
             // Call the creation function
-            create(&mut creator);
+            create(&mut *creator);
 
             // Finalize the database.
             creator.finalize();
@@ -136,7 +137,7 @@ pub struct CdbCreator {
 /// This structure contains methods that can be used while creating a new CDB.
 impl CdbCreator {
     // Note: deliberately private
-    fn new(path: &str) -> Result<CdbCreator, CdbError> {
+    fn new(path: &str) -> Result<Box<CdbCreator>, CdbError> {
         let fd = path.with_c_str(|path| unsafe {
             // TODO: allow changing this mode
             open(path, O_RDWR|O_CREAT|O_EXCL, 0o644)
@@ -146,18 +147,19 @@ impl CdbCreator {
             return Err(CdbError::new(errno() as c_int));
         }
 
-        let mut cdbm: ffi::cdb_make = unsafe { std::mem::zeroed() };
+        let mut ret = box CdbCreator {
+            fd: fd,
+            cdbm: unsafe { std::mem::uninitialized() },
+        };
+
         let err = unsafe {
-            ffi::cdb_make_start(&mut cdbm as *mut ffi::cdb_make, fd)
+            ffi::cdb_make_start(ret.cdbm_mut_ptr(), fd)
         };
         if err < 0 {
             return Err(CdbError::new(errno() as c_int));
         }
 
-        Ok(CdbCreator{
-            cdbm: cdbm,
-            fd: fd,
-        })
+        Ok(ret)
     }
 
     /*
