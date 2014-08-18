@@ -1,5 +1,7 @@
 use std;
 use std::io::IoError;
+use std::mem::transmute;
+use std::raw::Slice;
 
 use libc::{c_int, c_uint, c_void};
 use libc::funcs::posix88::fcntl::open;
@@ -11,6 +13,63 @@ use libc::consts::os::posix88::{O_CREAT, O_EXCL, O_RDONLY, O_RDWR};
 pub use ffi::ffi::CdbPutMode;
 
 use ffi::ffi;
+
+pub struct CdbIterator<'a> {
+    underlying: &'a mut Cdb,
+    cptr: c_uint,
+}
+
+// TODO: Move these into the Cdb struct.  Can't do that now because I ran into
+// some lifetime errors.
+impl<'a> CdbIterator<'a> {
+    unsafe fn get_key_slice(&self) -> &'a [u8] {
+        let len = self.underlying.cdb.cdb_keylen();
+        let ptr = ffi::cdb_get(
+            self.underlying.cdb_ptr(),
+            len,
+            self.underlying.cdb.cdb_keypos(),
+        ) as *const u8;
+
+        transmute(Slice {
+            data: ptr,
+            len:  len as uint,
+        })
+    }
+
+    unsafe fn get_data_slice(&self) -> &'a [u8] {
+        let len = self.underlying.cdb.cdb_datalen();
+        let ptr = ffi::cdb_get(
+            self.underlying.cdb_ptr(),
+            len,
+            self.underlying.cdb.cdb_datapos(),
+        ) as *const u8;
+
+        transmute(Slice {
+            data: ptr,
+            len:  len as uint,
+        })
+    }
+}
+
+impl<'a> Iterator<(&'a [u8], &'a [u8])> for CdbIterator<'a> {
+    fn next(&mut self) -> Option<(&'a [u8], &'a [u8])> {
+        let ret = unsafe {
+            ffi::cdb_seqnext(
+                &mut self.cptr as *mut c_uint,
+                self.underlying.cdb_mut_ptr(),
+            )
+        };
+
+        // TODO: should distinguish error condition from end-of-iteration
+        if ret <= 0 {
+            return None
+        }
+
+        let v = unsafe { (self.get_key_slice(), self.get_data_slice()) };
+        Some(v)
+    }
+
+}
 
 pub struct Cdb {
     cdb: ffi::cdb,
@@ -76,12 +135,12 @@ impl Cdb {
     }
 
     #[inline]
-    fn cdb_ptr(&self) -> *const ffi::cdb {
+    unsafe fn cdb_ptr(&self) -> *const ffi::cdb {
         &self.cdb as *const ffi::cdb
     }
 
     #[inline]
-    fn cdb_mut_ptr(&mut self) -> *mut ffi::cdb {
+    unsafe fn cdb_mut_ptr(&mut self) -> *mut ffi::cdb {
         &mut self.cdb as *mut ffi::cdb
     }
 
@@ -120,6 +179,9 @@ impl Cdb {
         Some(ret)
     }
 
+    // TODO: switch the above find to find_vec, create another find() method
+    // that returns immutable slices (without copying).
+
     /**
      * `exists(key)` returns whether the key exists in the database.  This is
      * essentially the same as the `find(key)` call, except that it does not
@@ -138,6 +200,27 @@ impl Cdb {
         } else {
             true
         }
+    }
+
+    pub fn iter<'a>(&'a mut self) -> CdbIterator<'a> {
+        // Need to get around the fact that we're borrowing self as mutable
+        // twice - specifically, once for the CdbIterator, and once to pass to
+        // cdb_seqinit.
+        let cdbp = unsafe { self.cdb_mut_ptr() };
+
+        let mut iter = CdbIterator {
+            underlying: self,
+            cptr: 0,
+        };
+
+        unsafe {
+            ffi::cdb_seqinit(
+                &mut iter.cptr as *mut c_uint,
+                cdbp,
+            );
+        }
+
+        iter
     }
 }
 
@@ -416,6 +499,31 @@ mod tests {
                 None => {}
                 Some(val) => fail!("Found unexpected value: {}", val),
             };
+        });
+    }
+
+    #[test]
+    fn test_iteration() {
+        with_test_file(HelloCDB, "iter.cdb", |path| {
+            let mut c = match Cdb::open(path) {
+                Err(why) => fail!("Could not open CDB: {}", why),
+                Ok(c) => c,
+            };
+
+            // Uncommenting this should cause compilation to fail, since we
+            // can't have two iterators, both with mutable borrows, at the same
+            // time.
+            // let it1 = c.iter();
+
+            let kvs: Vec<(&[u8], &[u8])> = c.iter().collect();
+
+            assert_eq!(kvs.len(), 2);
+
+            assert_eq!(kvs[0].val0(), b"one");
+            assert_eq!(kvs[0].val1(), b"Hello");
+
+            assert_eq!(kvs[1].val0(), b"two");
+            assert_eq!(kvs[1].val1(), b"Goodbye");
         });
     }
 

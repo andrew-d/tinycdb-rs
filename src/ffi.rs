@@ -145,5 +145,12 @@ pub mod ffi {
         pub fn cdb_make_find(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, mode: CdbFindMode) -> c_int;
         pub fn cdb_make_put(cdbmp: *mut cdb_make, key: *const c_void, klen: c_uint, val: *const c_void, vlen: c_uint, mode: CdbPutMode) -> c_int;
         pub fn cdb_make_finish(cdbmp: *mut cdb_make) -> c_int;
+
+        pub fn cdb_seqnext(cptr: *mut c_uint, cdbp: *mut cdb) -> c_int;
+    }
+
+    // A C macro
+    pub unsafe fn cdb_seqinit(cptr: *mut c_uint, _cdbp: *mut cdb) {
+        *cptr = 2048;
     }
 }
