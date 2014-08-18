@@ -387,11 +387,14 @@ impl Drop for CdbCreator {
 mod tests {
     extern crate flate;
     extern crate serialize;
+    extern crate test;
 
     use std::io::{File, fs};
     use std::path::Path;
+
     use self::flate::inflate_bytes;
     use self::serialize::base64::FromBase64;
+    use self::test::Bencher;
 
     use super::*;
     use super::super::ffi::ffi;
@@ -647,5 +650,66 @@ mod tests {
             None => fail!("Could not find 'foo' in CDB"),
             Some(val) => assert_eq!(val.as_slice(), b"bar"),
         };
+    }
+
+    // --------------------------------------------------
+
+    #[bench]
+    fn bench_add(b: &mut Bencher) {
+        use std::sync::atomic::{AtomicUint, SeqCst};
+        let ctr = AtomicUint::new(0);
+
+        let path = "add_bench.cdb";
+        let _rem = RemovingPath::new(Path::new(path));
+
+        let _ = Cdb::new(path, |creator| {
+            b.iter(|| {
+                let cnt_str = ctr.fetch_add(1, SeqCst).to_string();
+                let key = String::from_str("key").append(cnt_str.as_slice());
+                let val = String::from_str("val").append(cnt_str.as_slice());
+
+                let _ = creator.add(key.as_bytes(), val.as_bytes());
+            })
+        });
+    }
+
+    #[bench]
+    fn bench_find(b: &mut Bencher) {
+        let path = "find_bench.cdb";
+        let _rem = RemovingPath::new(Path::new(path));
+
+        let res = Cdb::new(path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+        });
+
+        let mut c = match res {
+            Ok(c) => c,
+            Err(why) => fail!("Could not create: {}", why),
+        };
+
+        b.iter(|| {
+            test::black_box(c.find(b"foo"));
+        });
+    }
+
+    #[bench]
+    fn bench_exists(b: &mut Bencher) {
+        let path = "exists_bench.cdb";
+        let _rem = RemovingPath::new(Path::new(path));
+
+        let res = Cdb::new(path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+        });
+
+        let mut c = match res {
+            Ok(c) => c,
+            Err(why) => fail!("Could not create: {}", why),
+        };
+
+        b.iter(|| {
+            test::black_box(c.exists(b"foo"));
+        });
     }
 }
