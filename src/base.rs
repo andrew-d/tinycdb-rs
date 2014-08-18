@@ -14,6 +14,7 @@ pub use ffi::ffi::CdbPutMode;
 
 use ffi::ffi;
 
+/// A `CdbIterator` allows iterating over all the keys in a CDB database.
 pub struct CdbIterator<'a> {
     underlying: &'a mut Cdb,
     cptr: c_uint,
@@ -71,6 +72,7 @@ impl<'a> Iterator<(&'a [u8], &'a [u8])> for CdbIterator<'a> {
 
 }
 
+/// The `Cdb` struct represents an open instance of a CDB database.
 pub struct Cdb {
     cdb: ffi::cdb,
     fd: c_int,
@@ -202,6 +204,10 @@ impl Cdb {
         }
     }
 
+    /**
+     * `iter()` returns an iterator over all the keys in the database.  Only
+     * one iterator for a database can be active at a time.
+     */
     pub fn iter<'a>(&'a mut self) -> CdbIterator<'a> {
         // Need to get around the fact that we're borrowing self as mutable
         // twice - specifically, once for the CdbIterator, and once to pass to
@@ -230,12 +236,12 @@ impl Drop for Cdb {
     }
 }
 
+/// The `CdbCreator` struct is used while building a new CDB instance.
 pub struct CdbCreator {
     cdbm: ffi::cdb_make,
     fd: c_int,
 }
 
-/// This structure contains methods that can be used while creating a new CDB.
 impl CdbCreator {
     // Note: deliberately private
     fn new(path: &str) -> Result<Box<CdbCreator>, IoError> {
@@ -465,7 +471,7 @@ mod tests {
     // Simple compressed/base64'd CDB that contains the key/values:
     //      "one" --> "Hello"
     //      "two" --> "Goodbye"
-    static HelloCDB: &'static [u8] = (
+    static HELLO_CDB: &'static [u8] = (
         b"7dIxCoAwDAXQoohCF8/QzdUjuOgdXETMVswiiKNTr20qGdydWn7g8/ghY1xj3nHwt4XY\
           a4cwNeP/DtohhPlbSioJ7zSR9xx7LTlOHpm39aJuCbbV6+/cc7BG9g8="
     );
@@ -474,7 +480,7 @@ mod tests {
     fn test_basic_find() {
         let mut ran = false;
 
-        with_test_file(HelloCDB, "basic.cdb", |path| {
+        with_test_file(HELLO_CDB, "basic.cdb", |path| {
             let mut c = match Cdb::open(path) {
                 Err(why) => fail!("Could not open CDB: {}", why),
                 Ok(c) => c,
@@ -493,7 +499,7 @@ mod tests {
 
     #[test]
     fn test_find_not_found() {
-        with_test_file(HelloCDB, "notfound.cdb", |path| {
+        with_test_file(HELLO_CDB, "notfound.cdb", |path| {
             let mut c = match Cdb::open(path) {
                 Err(why) => fail!("Could not open CDB: {}", why),
                 Ok(c) => c,
@@ -507,7 +513,7 @@ mod tests {
 
     #[test]
     fn test_iteration() {
-        with_test_file(HelloCDB, "iter.cdb", |path| {
+        with_test_file(HELLO_CDB, "iter.cdb", |path| {
             let mut c = match Cdb::open(path) {
                 Err(why) => fail!("Could not open CDB: {}", why),
                 Ok(c) => c,

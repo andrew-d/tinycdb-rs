@@ -83,6 +83,10 @@ pub mod ffi {
         cdb_rec: [*mut c_void, ..256],
     }
 
+    /**
+     * `CdbPutMode` represents the different behaviours that will be used when
+     * inserting a key into a database where the key already exists.
+     */
     #[repr(C)]
     pub enum CdbPutMode {
         /**
@@ -109,6 +113,7 @@ pub mod ffi {
         /**
          * Add the key to the database unconditionally, but also check if it
          * already existed.
+         *
          * TODO: what return value does put give?
          */
         Warn     = 3,
