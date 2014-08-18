@@ -1,6 +1,7 @@
 use std;
 use std::io::IoError;
 use std::mem::transmute;
+use std::path::Path;
 use std::raw::Slice;
 
 use libc::{c_int, c_uint, c_void};
@@ -72,6 +73,22 @@ impl<'a> Iterator<(&'a [u8], &'a [u8])> for CdbIterator<'a> {
 
 }
 
+// Convert a Path instance to a C-style string
+fn path_as_c_str<T>(path: &Path, f: |*const i8| -> T) -> T {
+    // First, convert the path to a vector...
+    let mut pvec = Vec::from_slice(path.as_vec());
+
+    // ... and ensure that it's null-terminated.
+    if pvec[pvec.len() - 1] != 0 {
+        pvec = pvec.append_one(0);
+    }
+
+    // Now, call the function with the new path pointer.
+    // This also returns what the function does.
+    f(pvec.as_ptr() as *const i8)
+}
+
+
 /// The `Cdb` struct represents an open instance of a CDB database.
 pub struct Cdb {
     cdb: ffi::cdb,
@@ -84,8 +101,8 @@ impl Cdb {
      * returning either the `CDB` struct or an error indicating why the
      * database could not be opened.
      */
-    pub fn open(path: &str) -> Result<Box<Cdb>, IoError> {
-        let fd = path.with_c_str(|path| unsafe {
+    pub fn open(path: &Path) -> Result<Box<Cdb>, IoError> {
+        let fd = path_as_c_str(path, |path| unsafe {
             open(path, O_RDONLY, 0)
         });
 
@@ -113,7 +130,7 @@ impl Cdb {
      * returns, the database can no longer be updated.  The now-open database
      * instance is then returned.
      */
-    pub fn new(path: &str, create: |&mut CdbCreator|) -> Result<Box<Cdb>, IoError> {
+    pub fn new(path: &Path, create: |&mut CdbCreator|) -> Result<Box<Cdb>, IoError> {
         // This is its own scope because we want it to be closed before trying
         // to re-open it below.
         {
@@ -244,8 +261,8 @@ pub struct CdbCreator {
 
 impl CdbCreator {
     // Note: deliberately private
-    fn new(path: &str) -> Result<Box<CdbCreator>, IoError> {
-        let fd = path.with_c_str(|path| unsafe {
+    fn new(path: &Path) -> Result<Box<CdbCreator>, IoError> {
+        let fd = path_as_c_str(path, |path| unsafe {
             // TODO: allow changing this mode
             open(path, O_RDWR|O_CREAT|O_EXCL, 0o644)
         });
@@ -434,12 +451,13 @@ mod tests {
     }
 
     impl RemovingPath {
-        pub fn new(p: Path) -> RemovingPath {
+        pub fn new(p: &Path) -> RemovingPath {
             RemovingPath {
-                underlying: p,
+                underlying: p.clone(),
             }
         }
 
+        #[allow(dead_code)]
         pub fn as_str(&self) -> &str {
             // Want to fail here, if we're in a test
             self.underlying.as_str().unwrap()
@@ -455,16 +473,16 @@ mod tests {
         }
     }
 
-    fn with_remove_file(name: &str, f: |&str|) {
-        let p = RemovingPath::new(Path::new(name));
-        f(p.as_str());
+    fn with_remove_file(path: &Path, f: |&Path|) {
+        let _p = RemovingPath::new(path);
+        f(path);
     }
 
-    fn with_test_file(input: &[u8], name: &str, f: |&str|) {
-        with_remove_file(name, |name| {
-            let p = Path::new(name);
-            decompress_and_write(input, &p);
-            f(name);
+    fn with_test_file(input: &[u8], name: &str, f: |&Path|) {
+        let path = Path::new(name);
+        with_remove_file(&path, |path| {
+            decompress_and_write(input, path);
+            f(path);
         });
     }
 
@@ -540,10 +558,10 @@ mod tests {
     fn test_simple_create() {
         let mut ran = false;
 
-        let path = "simple_create.cdb";
-        let _rem = RemovingPath::new(Path::new(path));
+        let path = Path::new("simple_create.cdb");
+        let _rem = RemovingPath::new(&path);
 
-        let c = Cdb::new(path, |_creator| {
+        let c = Cdb::new(&path, |_creator| {
             ran = true;
         });
 
@@ -557,10 +575,10 @@ mod tests {
 
     #[test]
     fn test_add_and_exists() {
-        let path = "add.cdb";
-        let _rem = RemovingPath::new(Path::new(path));
+        let path = Path::new("add.cdb");
+        let _rem = RemovingPath::new(&path);
 
-        let res = Cdb::new(path, |creator| {
+        let res = Cdb::new(&path, |creator| {
             let r = creator.add(b"foo", b"bar");
             assert!(r.is_ok());
 
@@ -590,10 +608,10 @@ mod tests {
 
     #[test]
     fn test_remove() {
-        let path = "remove.cdb";
-        let _rem = RemovingPath::new(Path::new(path));
+        let path = Path::new("remove.cdb");
+        let _rem = RemovingPath::new(&path);
 
-        let res = Cdb::new(path, |creator| {
+        let res = Cdb::new(&path, |creator| {
             let r = creator.add(b"foo", b"bar");
             assert!(r.is_ok());
 
@@ -624,10 +642,10 @@ mod tests {
 
     #[test]
     fn test_put() {
-        let path = "put.cdb";
-        let _rem = RemovingPath::new(Path::new(path));
+        let path = Path::new("put.cdb");
+        let _rem = RemovingPath::new(&path);
 
-        let res = Cdb::new(path, |creator| {
+        let res = Cdb::new(&path, |creator| {
             let r = creator.add(b"foo", b"bar");
             assert!(r.is_ok());
 
@@ -665,10 +683,10 @@ mod tests {
         use std::sync::atomic::{AtomicUint, SeqCst};
         let ctr = AtomicUint::new(0);
 
-        let path = "add_bench.cdb";
-        let _rem = RemovingPath::new(Path::new(path));
+        let path = Path::new("add_bench.cdb");
+        let _rem = RemovingPath::new(&path);
 
-        let _ = Cdb::new(path, |creator| {
+        let _ = Cdb::new(&path, |creator| {
             b.iter(|| {
                 let cnt_str = ctr.fetch_add(1, SeqCst).to_string();
                 let key = String::from_str("key").append(cnt_str.as_slice());
@@ -681,10 +699,10 @@ mod tests {
 
     #[bench]
     fn bench_find(b: &mut Bencher) {
-        let path = "find_bench.cdb";
-        let _rem = RemovingPath::new(Path::new(path));
+        let path = Path::new("find_bench.cdb");
+        let _rem = RemovingPath::new(&path);
 
-        let res = Cdb::new(path, |creator| {
+        let res = Cdb::new(&path, |creator| {
             let r = creator.add(b"foo", b"bar");
             assert!(r.is_ok());
         });
@@ -701,10 +719,10 @@ mod tests {
 
     #[bench]
     fn bench_exists(b: &mut Bencher) {
-        let path = "exists_bench.cdb";
-        let _rem = RemovingPath::new(Path::new(path));
+        let path = Path::new("exists_bench.cdb");
+        let _rem = RemovingPath::new(&path);
 
-        let res = Cdb::new(path, |creator| {
+        let res = Cdb::new(&path, |creator| {
             let r = creator.add(b"foo", b"bar");
             assert!(r.is_ok());
         });
