@@ -7,7 +7,15 @@ a small library for creating and reading constant key-value databases.
 
 # Example
 
-What to import:
+Add this to your `Cargo.toml`:
+
+```
+[dependencies.tinycdb]
+
+git = "https://github.com/andrew-d/tinycdb-rs"
+```
+
+Then, in your crate:
 
 ```rust
 extern crate tinycdb;
