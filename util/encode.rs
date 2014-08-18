@@ -2,6 +2,7 @@
 /// Pass it a filename as the first argument and it will DEFLATE and then
 /// Base64 encode the contents, writing the output to stdout.
 
+
 extern crate flate;
 extern crate serialize;
 
@@ -10,6 +11,9 @@ use std::os;
 use flate::deflate_bytes;
 use serialize::base64::{STANDARD, ToBase64};
 
+// NOTE: we have the attribute here to suppress irritating warnings when using
+// Cargo to compile/test/benchmark the remainder of this library.
+#[allow(dead_code)]
 fn main() {
     let args = os::args();
     let fname = args[1].as_slice();
