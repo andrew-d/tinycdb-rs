@@ -311,6 +311,7 @@ mod tests {
     use self::serialize::base64::FromBase64;
 
     use super::*;
+    use super::super::ffi::ffi;
 
     // De-base64s and decompresses
     fn decompress_and_write(input: &[u8], path: &Path) {
@@ -468,5 +469,75 @@ mod tests {
         };
 
         assert_eq!(res.as_slice(), b"bar");
+    }
+
+    #[test]
+    fn test_remove() {
+        let path = "remove.cdb";
+        let _rem = RemovingPath::new(Path::new(path));
+
+        let res = Cdb::new(path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+
+            match creator.exists(b"foo") {
+                Ok(v) => assert!(v),
+                Err(why) => fail!("Could not check: {}", why),
+            }
+
+            let r = creator.remove(b"foo", false);
+            assert!(r.is_ok());
+
+            match creator.exists(b"foo") {
+                Ok(v) => assert!(!v),
+                Err(why) => fail!("Could not check: {}", why),
+            }
+        });
+
+        let mut c = match res {
+            Ok(c) => c,
+            Err(why) => fail!("Could not create: {}", why),
+        };
+
+        match c.find(b"foo") {
+            None => {},
+            Some(val) => fail!("Found value for 'foo' when not expected: {}", val),
+        };
+    }
+
+    #[test]
+    fn test_put() {
+        let path = "put.cdb";
+        let _rem = RemovingPath::new(Path::new(path));
+
+        let res = Cdb::new(path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+
+            match creator.exists(b"foo") {
+                Ok(v) => assert!(v),
+                Err(why) => fail!("Could not check: {}", why),
+            }
+
+            let r = creator.put(b"foo", b"baz", ffi::Insert);
+            assert!(r.is_ok());
+
+            match creator.exists(b"foo") {
+                Ok(v) => assert!(v),
+                Err(why) => fail!("Could not check: {}", why),
+            }
+        });
+
+        let mut c = match res {
+            Ok(c) => c,
+            Err(why) => fail!("Could not create: {}", why),
+        };
+
+        // The 'insert' operation should have only inserted if it didn't exist,
+        // and since it did, the value is 'bar'
+        match c.find(b"foo") {
+            None => fail!("Could not find 'foo' in CDB"),
+            Some(val) => assert_eq!(val.as_slice(), b"bar"),
+        };
     }
 }
