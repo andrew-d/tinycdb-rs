@@ -419,7 +419,7 @@ mod tests {
     use self::serialize::base64::FromBase64;
     use self::test::Bencher;
 
-    use super::*;
+    use super::Cdb;
     use super::super::ffi::ffi;
 
     // De-base64s and decompresses
