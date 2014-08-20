@@ -21,6 +21,7 @@
 #![warn(managed_heap_memory)]
 #![warn(unnecessary_qualification)]
 #![feature(globs)]
+#![feature(unsafe_destructor)]
 
 extern crate libc;
 

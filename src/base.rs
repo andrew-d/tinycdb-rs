@@ -56,7 +56,7 @@ pub type CdbResult<T> = Result<T, CdbError>;
 
 /// A `CdbIterator` allows iterating over all the keys in a CDB database.
 pub struct CdbIterator<'a> {
-    underlying: &'a mut Cdb,
+    underlying: &'a mut Cdb<'a>,
     cptr: c_uint,
 }
 
@@ -129,12 +129,12 @@ fn path_as_c_str<T>(path: &Path, f: |*const i8| -> T) -> T {
 
 
 /// The `Cdb` struct represents an open instance of a CDB database.
-pub struct Cdb {
+pub struct Cdb<'a> {
     cdb: ffi::cdb,
     fd: c_int,
 }
 
-impl Cdb {
+impl<'a> Cdb<'a> {
     /**
      * `open(path)` will open the CDB database at the given file path,
      * returning either the `CDB` struct or an error indicating why the
@@ -169,7 +169,7 @@ impl Cdb {
      * returns, the database can no longer be updated.  The now-open database
      * instance is then returned.
      */
-    pub fn new(path: &Path, create: |&mut CdbCreator|) -> CdbResult<Box<Cdb>> {
+    pub fn new(path: &Path, create: |&mut CdbCreator|) -> CdbResult<Box<Cdb<'a>>> {
         // This is its own scope because we want it to be closed before trying
         // to re-open it below.
         {
@@ -204,11 +204,46 @@ impl Cdb {
 
     /**
      * `find(key)` searches the database for the given key, and, if it's found,
-     * will return the associated value as a `Vec<u8>`.  Note that, since it is
-     * possible to have multiple records with the same key, `find()` will only
-     * return the value of the first key.
+     * will return the associated value as an immutable byte slice.  Note that,
+     * since it is possible to have multiple records with the same key, `find`
+     * will only return the value of the first key.
      */
-    pub fn find(&mut self, key: &[u8]) -> Option<Vec<u8>> {
+    pub fn find(&'a mut self, key: &[u8]) -> Option<&'a [u8]> {
+        let res = unsafe {
+            ffi::cdb_find(
+                self.cdb_mut_ptr(),
+                key.as_ptr() as *const c_void,
+                key.len() as c_uint,
+            )
+        };
+        if res <= 0 {
+            return None
+        }
+
+        let len = self.cdb.cdb_datalen();
+        let ptr = unsafe {
+            ffi::cdb_get(
+                self.cdb_ptr(),
+                len,
+                self.cdb.cdb_datapos(),
+            ) as *const u8
+        };
+
+        unsafe {
+            transmute(Slice {
+                data: ptr,
+                len:  len as uint,
+            })
+        }
+    }
+
+    /**
+     * `find_mut(key)` searches the database for the given key, and, if it's
+     * found, will return the associated value as a `Vec<u8>`.  Note that,
+     * since it is possible to have multiple records with the same key,
+     * `find_mut` will only return the value of the first key.
+     */
+    pub fn find_mut(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         let res = unsafe {
             ffi::cdb_find(
                 self.cdb_mut_ptr(),
@@ -236,9 +271,6 @@ impl Cdb {
 
         Some(ret)
     }
-
-    // TODO: switch the above find to find_vec, create another find() method
-    // that returns immutable slices (without copying).
 
     /**
      * `exists(key)` returns whether the key exists in the database.  This is
@@ -286,7 +318,8 @@ impl Cdb {
     }
 }
 
-impl Drop for Cdb {
+#[unsafe_destructor]
+impl<'a> Drop for Cdb<'a> {
     fn drop(&mut self) {
         unsafe { close(self.fd) };
     }
@@ -542,12 +575,19 @@ mod tests {
                 Err(why) => fail!("Could not open CDB: {}", why),
                 Ok(c) => c,
             };
-            let res = match c.find(b"one") {
-                None => fail!("Could not find 'one' in CDB"),
+
+            let res = match c.find_mut(b"one") {
+                None => fail!("Could not find 'one' in CDB (find_mut)"),
                 Some(val) => val,
             };
-
             assert_eq!(res.as_slice(), b"Hello");
+
+            let res = match c.find(b"one") {
+                None => fail!("Could not find 'one' in CDB (find)"),
+                Some(val) => val,
+            };
+            assert_eq!(res, b"Hello");
+
             ran = true;
         });
 
@@ -642,7 +682,7 @@ mod tests {
             Some(val) => val,
         };
 
-        assert_eq!(res.as_slice(), b"bar");
+        assert_eq!(res, b"bar");
     }
 
     #[test]
