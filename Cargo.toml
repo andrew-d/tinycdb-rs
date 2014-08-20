@@ -6,6 +6,5 @@ authors = ["Andrew Dunham <andrew@du.nham.ca>"]
 build = "make"
 
 [[bin]]
-
 name = "encode"
 path = "util/encode.rs"
