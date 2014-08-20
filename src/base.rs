@@ -244,32 +244,10 @@ impl<'a> Cdb<'a> {
      * `find_mut` will only return the value of the first key.
      */
     pub fn find_mut(&mut self, key: &[u8]) -> Option<Vec<u8>> {
-        let res = unsafe {
-            ffi::cdb_find(
-                self.cdb_mut_ptr(),
-                key.as_ptr() as *const c_void,
-                key.len() as c_uint,
-            )
-        };
-        if res <= 0 {
-            return None
+        match self.find(key) {
+            Some(val) => Some(Vec::from_slice(val)),
+            None      => None,
         }
-
-        let mut ret = Vec::with_capacity(self.cdb.cdb_datalen() as uint);
-
-        unsafe {
-            // TODO: Pretty sure this never returns an error...
-            ffi::cdb_read(
-                self.cdb_ptr(),
-                ret.as_ptr() as *mut c_void,
-                self.cdb.cdb_datalen(),
-                self.cdb.cdb_datapos()
-            );
-
-            ret.set_len(self.cdb.cdb_datalen() as uint);
-        }
-
-        Some(ret)
     }
 
     /**
