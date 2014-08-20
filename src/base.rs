@@ -775,6 +775,26 @@ mod tests {
     }
 
     #[bench]
+    fn bench_find_mut(b: &mut Bencher) {
+        let path = Path::new("find_bench.cdb");
+        let _rem = RemovingPath::new(&path);
+
+        let res = Cdb::new(&path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+        });
+
+        let mut c = match res {
+            Ok(c) => c,
+            Err(why) => fail!("Could not create: {}", why),
+        };
+
+        b.iter(|| {
+            test::black_box(c.find_mut(b"foo"));
+        });
+    }
+
+    #[bench]
     fn bench_exists(b: &mut Bencher) {
         let path = Path::new("exists_bench.cdb");
         let _rem = RemovingPath::new(&path);
