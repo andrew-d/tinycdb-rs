@@ -6,6 +6,6 @@ install:
 script:
   - cargo build --verbose
   - cargo test --verbose
-  - rustdoc src/lib.rs
+  - make doc
 after_script:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
