@@ -115,11 +115,11 @@ impl<'a> Iterator<(&'a [u8], &'a [u8])> for CdbIterator<'a> {
 // Convert a Path instance to a C-style string
 fn path_as_c_str<T>(path: &Path, f: |*const i8| -> T) -> T {
     // First, convert the path to a vector...
-    let mut pvec = Vec::from_slice(path.as_vec());
+    let mut pvec = path.as_vec().to_vec();
 
     // ... and ensure that it's null-terminated.
     if pvec[pvec.len() - 1] != 0 {
-        pvec = pvec.append_one(0);
+        pvec.push(0);
     }
 
     // Now, call the function with the new path pointer.
@@ -728,8 +728,11 @@ mod tests {
         let _ = Cdb::new(&path, |creator| {
             b.iter(|| {
                 let cnt_str = ctr.fetch_add(1, SeqCst).to_string();
-                let key = String::from_str("key").append(cnt_str.as_slice());
-                let val = String::from_str("val").append(cnt_str.as_slice());
+                let mut key = String::from_str("key");
+                key.push_str(cnt_str.as_slice());
+
+                let mut val = String::from_str("val");
+                val.push_str(cnt_str.as_slice());
 
                 let _ = creator.add(key.as_bytes(), val.as_bytes());
             })
