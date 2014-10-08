@@ -245,7 +245,7 @@ impl<'a> Cdb<'a> {
      */
     pub fn find_mut(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         match self.find(key) {
-            Some(val) => Some(Vec::from_slice(val)),
+            Some(val) => Some(val.to_vec()),
             None      => None,
         }
     }
