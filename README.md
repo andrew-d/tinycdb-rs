@@ -30,7 +30,7 @@ let path = Path::new("test.cdb");
 
 let mut db = match Cdb::open(&path) {
     Ok(db) => db,
-    Err(why) => fail!("Could not open CDB: {}", why),
+    Err(why) => panic!("Could not open CDB: {}", why),
 };
 
 match db.find(b"foo") {
@@ -51,7 +51,7 @@ let res = Cdb::new(&path, |creator| {
 
 let mut db = match res {
     Ok(db)   => db,
-    Err(why) => fail!("Could not create database: {}", why),
+    Err(why) => panic!("Could not create database: {}", why),
 };
 
 // Now, use 'db' as normal...

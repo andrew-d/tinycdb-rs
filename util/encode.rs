@@ -19,17 +19,17 @@ fn main() {
     let fname = args[1].as_slice();
 
     let mut file = match File::open(&Path::new(fname)) {
-        Err(why) => fail!("Couldn't open {}: {}", fname, why.desc),
+        Err(why) => panic!("Couldn't open {}: {}", fname, why.desc),
         Ok(file) => file,
     };
 
     let s = match file.read_to_end() {
-        Err(why) => fail!("Couldn't read {}: {}", fname, why.desc),
+        Err(why) => panic!("Couldn't read {}: {}", fname, why.desc),
         Ok(s) => s,
     };
 
     let deflated = match deflate_bytes(s.as_slice()) {
-        None => fail!("Error encoding to bytes"),
+        None => panic!("Error encoding to bytes"),
         Some(v) => v,
     };
 

@@ -343,7 +343,7 @@ impl CdbCreator {
     /**
      * `add(key, val)` adds the given key/value pair to the database, silently
      * overwriting any previously-existing value.  It returns whether or not
-     * the operation succeeded.  Note that if this call fails, it is unsafe to
+     * the operation succeeded.  Note that if this call panics, it is unsafe to
      * continue building the database.
      */
     pub fn add(&mut self, key: &[u8], val: &[u8]) -> CdbResult<()> {
@@ -464,27 +464,27 @@ mod tests {
     // De-base64s and decompresses
     fn decompress_and_write(input: &[u8], path: &Path) {
         let raw = match input.from_base64() {
-            Err(why) => fail!("Could not decode base64: {}", why),
+            Err(why) => panic!("Could not decode base64: {}", why),
             Ok(val) => val,
         };
         let decomp = match inflate_bytes(raw.as_slice()) {
-            None => fail!("Could not inflate bytes: {}"),
+            None => panic!("Could not inflate bytes: {}"),
             Some(val) => val,
         };
 
         let mut file = match File::create(path) {
-            Err(why) => fail!("Couldn't create {}: {}", path.display(), why),
+            Err(why) => panic!("Couldn't create {}: {}", path.display(), why),
             Ok(file) => file,
         };
 
         match file.write(decomp.as_slice()) {
-            Err(why) => fail!("Couldn't write to {}: {}", path.display(), why),
+            Err(why) => panic!("Couldn't write to {}: {}", path.display(), why),
             Ok(_) => {},
         };
     }
 
     // Helper to remove test files after a test is finished, even if the test
-    // fail!()s
+    // panic!()s
     struct RemovingPath {
         underlying: Path,
     }
@@ -498,7 +498,7 @@ mod tests {
 
         #[allow(dead_code)]
         pub fn as_str(&self) -> &str {
-            // Want to fail here, if we're in a test
+            // Want to panic here, if we're in a test
             self.underlying.as_str().unwrap()
         }
     }
@@ -539,11 +539,11 @@ mod tests {
 
         with_test_file(HELLO_CDB, "basic.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => fail!("Could not open CDB: {}", why),
+                Err(why) => panic!("Could not open CDB: {}", why),
                 Ok(c) => c,
             };
             let res = match c.find(b"one") {
-                None => fail!("Could not find 'one' in CDB"),
+                None => panic!("Could not find 'one' in CDB"),
                 Some(val) => val,
             };
 
@@ -558,12 +558,12 @@ mod tests {
     fn test_find_not_found() {
         with_test_file(HELLO_CDB, "notfound.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => fail!("Could not open CDB: {}", why),
+                Err(why) => panic!("Could not open CDB: {}", why),
                 Ok(c) => c,
             };
             match c.find("bad".as_bytes()) {
                 None => {}
-                Some(val) => fail!("Found unexpected value: {}", val),
+                Some(val) => panic!("Found unexpected value: {}", val),
             };
         });
     }
@@ -572,11 +572,11 @@ mod tests {
     fn test_iteration() {
         with_test_file(HELLO_CDB, "iter.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => fail!("Could not open CDB: {}", why),
+                Err(why) => panic!("Could not open CDB: {}", why),
                 Ok(c) => c,
             };
 
-            // Uncommenting this should cause compilation to fail, since we
+            // Uncommenting this should cause compilation to panic, since we
             // can't have two iterators, both with mutable borrows, at the same
             // time.
             // let it1 = c.iter();
@@ -606,7 +606,7 @@ mod tests {
 
         match c {
             Ok(_) => {},
-            Err(why) => fail!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {}", why),
         }
 
         assert!(ran);
@@ -623,22 +623,22 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => fail!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {}", why),
             }
 
             match creator.exists(b"notexisting") {
                 Ok(v) => assert!(!v),
-                Err(why) => fail!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {}", why),
             }
         });
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => fail!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {}", why),
         };
 
         let res = match c.find(b"foo") {
-            None => fail!("Could not find 'foo' in CDB"),
+            None => panic!("Could not find 'foo' in CDB"),
             Some(val) => val,
         };
 
@@ -656,7 +656,7 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => fail!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {}", why),
             }
 
             let r = creator.remove(b"foo", false);
@@ -664,18 +664,18 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(!v),
-                Err(why) => fail!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {}", why),
             }
         });
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => fail!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {}", why),
         };
 
         match c.find(b"foo") {
             None => {},
-            Some(val) => fail!("Found value for 'foo' when not expected: {}", val),
+            Some(val) => panic!("Found value for 'foo' when not expected: {}", val),
         };
     }
 
@@ -690,7 +690,7 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => fail!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {}", why),
             }
 
             let r = creator.put(b"foo", b"baz", ffi::Insert);
@@ -698,19 +698,19 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => fail!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {}", why),
             }
         });
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => fail!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {}", why),
         };
 
         // The 'insert' operation should have only inserted if it didn't exist,
         // and since it did, the value is 'bar'
         match c.find(b"foo") {
-            None => fail!("Could not find 'foo' in CDB"),
+            None => panic!("Could not find 'foo' in CDB"),
             Some(val) => assert_eq!(val.as_slice(), b"bar"),
         };
     }
@@ -751,7 +751,7 @@ mod tests {
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => fail!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {}", why),
         };
 
         b.iter(|| {
@@ -771,7 +771,7 @@ mod tests {
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => fail!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {}", why),
         };
 
         b.iter(|| {
