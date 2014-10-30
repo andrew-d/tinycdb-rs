@@ -555,7 +555,7 @@ mod tests {
             };
 
             let res = match c.find_mut(b"one") {
-                None => fail!("Could not find 'one' in CDB (find_mut)"),
+                None => panic!("Could not find 'one' in CDB (find_mut)"),
                 Some(val) => val,
             };
             assert_eq!(res.as_slice(), b"Hello");
@@ -789,7 +789,7 @@ mod tests {
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => fail!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {}", why),
         };
 
         b.iter(|| {
