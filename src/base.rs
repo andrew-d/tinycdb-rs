@@ -47,7 +47,7 @@ impl CdbError {
      * Note: deliberately not public.
      */
     fn new_from_errno<T: IntoMaybeOwned<'static>>(msg: T) -> CdbError {
-        CdbError::new(msg, IoError(std::io::IoError::last_error()))
+        CdbError::new(msg, CdbErrorKind::IoError(std::io::IoError::last_error()))
     }
 }
 
@@ -397,7 +397,7 @@ impl CdbCreator {
      * were removed.
      */
     pub fn remove(&mut self, key: &[u8], zero: bool) -> CdbResult<bool> {
-        let mode = if zero { ffi::Fill0 } else { ffi::Remove };
+        let mode = if zero { ffi::CdbFindMode::Fill0 } else { ffi::CdbFindMode::Remove };
         let res = unsafe {
             ffi::cdb_make_find(
                 self.cdbm_mut_ptr(),
@@ -693,7 +693,7 @@ mod tests {
                 Err(why) => panic!("Could not check: {}", why),
             }
 
-            let r = creator.put(b"foo", b"baz", ffi::Insert);
+            let r = creator.put(b"foo", b"baz", ffi::CdbPutMode::Insert);
             assert!(r.is_ok());
 
             match creator.exists(b"foo") {
