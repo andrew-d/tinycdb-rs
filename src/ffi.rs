@@ -133,7 +133,6 @@ pub mod ffi {
         Fill0  = 4,     // == CDB_PUT_REPLACE0
     }
 
-    #[link(name = "cdb", kind = "static")]
     extern "C" {
         pub fn cdb_init(cdbp: *mut cdb, fd: c_int) -> c_int;
         pub fn cdb_free(cdbp: *mut cdb);

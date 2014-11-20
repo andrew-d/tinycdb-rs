@@ -8,6 +8,11 @@ fn main() {
     let tinycdb_path = Path::new("deps")
                             .join(format!("tinycdb-{}", TINYCDB_VERSION));
 
+    // Clean the build directory first.
+    Command::new("make").args(&["-C", tinycdb_path.as_str().unwrap()])
+                        .arg("clean")
+                        .status().unwrap();
+
     // Call "make" to build the native C library
     Command::new("make").args(&["-C", tinycdb_path.as_str().unwrap()])
                         .arg("piclib")
