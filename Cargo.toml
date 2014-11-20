@@ -1,8 +1,16 @@
 [package]
 
 name = "tinycdb"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Andrew Dunham <andrew@du.nham.ca>"]
+
+description = "Bindings to the TinyCDB C library (http://www.corpit.ru/mjt/tinycdb.html)"
+documentation = "http://rust-ci.org/andrew-d/tinycdb-rs/doc/tinycdb/"
+repository = "https://github.com/andrew-d/tinycdb-rs"
+readme = "README.md"
+keywords = ["bindings", "database", "cdb", "tinycdb"]
+license = "MIT"
+
 build = "build.rs"
 
 [[bin]]
