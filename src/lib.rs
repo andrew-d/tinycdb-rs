@@ -20,6 +20,7 @@
 #![warn(non_upper_case_globals)]
 #![warn(unused_qualifications)]
 #![feature(globs)]
+#![feature(unsafe_destructor)]
 
 extern crate libc;
 
