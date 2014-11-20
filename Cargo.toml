@@ -1,7 +1,7 @@
 [package]
 
 name = "tinycdb"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Andrew Dunham <andrew@du.nham.ca>"]
 
 description = "Bindings to the TinyCDB C library (http://www.corpit.ru/mjt/tinycdb.html)"
