@@ -3,7 +3,7 @@
 name = "tinycdb"
 version = "0.0.1"
 authors = ["Andrew Dunham <andrew@du.nham.ca>"]
-build = "make c_library"
+build = "build.rs"
 
 [[bin]]
 name = "encode"

@@ -5,6 +5,6 @@ env:
 script:
   - cargo build --verbose
   - cargo test --verbose
-  - make doc
+  - rustdoc src/lib.rs
 after_script:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
