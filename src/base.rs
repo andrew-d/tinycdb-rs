@@ -35,10 +35,10 @@ impl CdbError {
     /**
      * Create a new CdbError from the given kind and message.
      */
-    pub fn new<T: IntoMaybeOwned<'static>>(msg: T, kind: CdbErrorKind) -> CdbError {
+    pub fn new<T: IntoCow<'static, String, str>>(msg: T, kind: CdbErrorKind) -> CdbError {
         CdbError {
             kind: kind,
-            message: msg.into_maybe_owned(),
+            message: msg.into_cow(),
         }
     }
 
@@ -46,7 +46,7 @@ impl CdbError {
      * Create a new CdbError from the current errno.
      * Note: deliberately not public.
      */
-    fn new_from_errno<T: IntoMaybeOwned<'static>>(msg: T) -> CdbError {
+    fn new_from_errno<T: IntoCow<'static, String, str>>(msg: T) -> CdbError {
         CdbError::new(msg, CdbErrorKind::IoError(std::io::IoError::last_error()))
     }
 }
