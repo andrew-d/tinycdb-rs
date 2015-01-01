@@ -13,8 +13,6 @@
  *
  */
 #![crate_name = "tinycdb"]
-#![comment = "Bindings to TinyCDB"]
-#![license = "MIT"]
 #![crate_type = "lib"]
 #![warn(missing_docs)]
 #![warn(non_upper_case_globals)]

@@ -274,7 +274,7 @@ impl<'a> Cdb<'a> {
      * `iter()` returns an iterator over all the keys in the database.  Only
      * one iterator for a database can be active at a time.
      */
-    pub fn iter<'a>(&'a mut self) -> CdbIterator<'a> {
+    pub fn iter<'s>(&'s mut self) -> CdbIterator<'s> {
         // Need to get around the fact that we're borrowing self as mutable
         // twice - specifically, once for the CdbIterator, and once to pass to
         // cdb_seqinit.
@@ -603,11 +603,11 @@ mod tests {
 
             assert_eq!(kvs.len(), 2);
 
-            assert_eq!(kvs[0].val0(), b"one");
-            assert_eq!(kvs[0].val1(), b"Hello");
+            assert_eq!(kvs[0].0, b"one");
+            assert_eq!(kvs[0].1, b"Hello");
 
-            assert_eq!(kvs[1].val0(), b"two");
-            assert_eq!(kvs[1].val1(), b"Goodbye");
+            assert_eq!(kvs[1].0, b"two");
+            assert_eq!(kvs[1].1, b"Goodbye");
         });
     }
 
