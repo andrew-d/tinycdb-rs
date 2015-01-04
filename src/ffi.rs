@@ -73,14 +73,14 @@ pub mod ffi {
         cdb_rcnt: c_uint,
 
         // Write buffer
-        cdb_buf: [c_uchar, ..4096],
+        cdb_buf: [c_uchar; 4096],
 
         // Current buf position
         cdb_bpos: *mut c_uchar,
 
         // List of arrays of record infos
         // OLD: cdb_rl*
-        cdb_rec: [*mut c_void, ..256],
+        cdb_rec: [*mut c_void; 256],
     }
 
     /**
@@ -88,7 +88,7 @@ pub mod ffi {
      * inserting a key into a database where the key already exists.
      */
     #[repr(C)]
-    #[deriving(Copy, Show, PartialEq, Eq)]
+    #[derive(Copy, Show, PartialEq, Eq)]
     pub enum CdbPutMode {
         /**
          * No duplicate checking will be performed.  This is the same as just

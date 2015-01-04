@@ -1,4 +1,5 @@
 use std;
+use std::borrow::IntoCow;
 use std::mem::transmute;
 use std::path::Path;
 use std::raw::Slice;
@@ -15,7 +16,7 @@ pub use ffi::ffi::CdbPutMode;
 use ffi::ffi;
 
 /// Kinds of errors that can be encountered.
-#[deriving(Show)]
+#[derive(Show)]
 pub enum CdbErrorKind {
     /// An error resulting from an underlying I/O error.
     IoError(std::io::IoError),
@@ -25,7 +26,7 @@ pub enum CdbErrorKind {
 }
 
 /// Our error type
-#[deriving(Show)]
+#[derive(Show)]
 pub struct CdbError {
     kind: CdbErrorKind,
     message: SendStr,
@@ -92,7 +93,9 @@ impl<'a> CdbIterator<'a> {
     }
 }
 
-impl<'a> Iterator<(&'a [u8], &'a [u8])> for CdbIterator<'a> {
+impl<'a> Iterator for CdbIterator<'a> {
+    type Item = (&'a [u8], &'a [u8]);
+
     fn next(&mut self) -> Option<(&'a [u8], &'a [u8])> {
         let ret = unsafe {
             ffi::cdb_seqnext(

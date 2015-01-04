@@ -17,7 +17,9 @@
 #![warn(missing_docs)]
 #![warn(non_upper_case_globals)]
 #![warn(unused_qualifications)]
+#![feature(associated_types)]
 #![feature(globs)]
+#![feature(slicing_syntax)]
 #![feature(unsafe_destructor)]
 
 extern crate libc;
