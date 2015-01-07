@@ -3,7 +3,7 @@ use std::borrow::IntoCow;
 use std::mem::transmute;
 use std::path::Path;
 use std::raw::Slice;
-use std::str::SendStr;
+use std::borrow::Cow;
 
 use libc::{c_int, c_uint, c_void};
 use libc::funcs::posix88::fcntl::open;
@@ -24,6 +24,9 @@ pub enum CdbErrorKind {
     // TODO: Split up actual I/O errors from errors that TinyCDB will return
     // in errno.
 }
+
+// This isn't in std any more
+type SendStr = Cow<'static, String, str>;
 
 /// Our error type
 #[derive(Show)]
@@ -116,7 +119,9 @@ impl<'a> Iterator for CdbIterator<'a> {
 }
 
 // Convert a Path instance to a C-style string
-fn path_as_c_str<T>(path: &Path, f: |*const i8| -> T) -> T {
+fn path_as_c_str<F, T>(path: &Path, f: F) -> T
+    where F: Fn(*const i8) -> T
+{
     // First, convert the path to a vector...
     let mut pvec = path.as_vec().to_vec();
 
@@ -172,7 +177,9 @@ impl<'a> Cdb<'a> {
      * returns, the database can no longer be updated.  The now-open database
      * instance is then returned.
      */
-    pub fn new(path: &Path, create: |&mut CdbCreator|) -> CdbResult<Box<Cdb<'a>>> {
+    pub fn new<F>(path: &Path, mut create: F) -> CdbResult<Box<Cdb<'a>>>
+        where F: FnMut(&mut CdbCreator)
+    {
         // This is its own scope because we want it to be closed before trying
         // to re-open it below.
         {
@@ -526,14 +533,18 @@ mod tests {
         }
     }
 
-    fn with_remove_file(path: &Path, f: |&Path|) {
+    fn with_remove_file<F>(path: &Path, mut f: F)
+        where F: FnMut(&Path)
+    {
         let _p = RemovingPath::new(path);
         f(path);
     }
 
-    fn with_test_file(input: &[u8], name: &str, f: |&Path|) {
+    fn with_test_file<F>(input: &[u8], name: &str, mut f: F)
+        where F: FnMut(&Path)
+    {
         let path = Path::new(name);
-        with_remove_file(&path, |path| {
+        with_remove_file(&path, |&mut: path| {
             decompress_and_write(input, path);
             f(path);
         });
@@ -740,15 +751,15 @@ mod tests {
 
     #[bench]
     fn bench_add(b: &mut Bencher) {
-        use std::sync::atomic::{AtomicUint, SeqCst};
+        use std::sync::atomic::{AtomicUint, Ordering};
         let ctr = AtomicUint::new(0);
 
         let path = Path::new("add_bench.cdb");
         let _rem = RemovingPath::new(&path);
 
-        let _ = Cdb::new(&path, |creator| {
-            b.iter(|| {
-                let cnt_str = ctr.fetch_add(1, SeqCst).to_string();
+        let _ = Cdb::new(&path, |&mut: creator| {
+            b.iter(|&mut:| {
+                let cnt_str = ctr.fetch_add(1, Ordering::SeqCst).to_string();
                 let mut key = String::from_str("key");
                 key.push_str(cnt_str.as_slice());
 
@@ -775,7 +786,7 @@ mod tests {
             Err(why) => panic!("Could not create: {}", why),
         };
 
-        b.iter(|| {
+        b.iter(|&mut:| {
             test::black_box(c.find(b"foo"));
         });
     }
