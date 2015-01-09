@@ -77,7 +77,7 @@ impl<'a> CdbIterator<'a> {
 
         transmute(Slice {
             data: ptr,
-            len:  len as uint,
+            len:  len as usize,
         })
     }
 
@@ -91,7 +91,7 @@ impl<'a> CdbIterator<'a> {
 
         transmute(Slice {
             data: ptr,
-            len:  len as uint,
+            len:  len as usize,
         })
     }
 }
@@ -157,10 +157,10 @@ impl<'a> Cdb<'a> {
             return Err(CdbError::new_from_errno("Error opening file"));
         }
 
-        let mut ret = box Cdb {
+        let mut ret = Box::new(Cdb {
             fd: fd,
             cdb: unsafe { std::mem::uninitialized() },
-        };
+        });
 
         let err = unsafe { ffi::cdb_init(ret.cdb_mut_ptr(), fd) };
         if err < 0 {
@@ -242,7 +242,7 @@ impl<'a> Cdb<'a> {
         unsafe {
             transmute(Slice {
                 data: ptr,
-                len:  len as uint,
+                len:  len as usize,
             })
         }
     }
@@ -331,10 +331,10 @@ impl CdbCreator {
             return Err(CdbError::new_from_errno("Error creating file"));
         }
 
-        let mut ret = box CdbCreator {
+        let mut ret = Box::new(CdbCreator {
             fd: fd,
             cdbm: unsafe { std::mem::uninitialized() },
-        };
+        });
 
         let err = unsafe {
             ffi::cdb_make_start(ret.cdbm_mut_ptr(), fd)
@@ -485,21 +485,21 @@ mod tests {
     // De-base64s and decompresses
     fn decompress_and_write(input: &[u8], path: &Path) {
         let raw = match input.from_base64() {
-            Err(why) => panic!("Could not decode base64: {}", why),
+            Err(why) => panic!("Could not decode base64: {:?}", why),
             Ok(val) => val,
         };
         let decomp = match inflate_bytes(raw.as_slice()) {
-            None => panic!("Could not inflate bytes: {}"),
+            None => panic!("Could not inflate bytes: {:?}"),
             Some(val) => val,
         };
 
         let mut file = match File::create(path) {
-            Err(why) => panic!("Couldn't create {}: {}", path.display(), why),
+            Err(why) => panic!("Couldn't create {}: {:?}", path.display(), why),
             Ok(file) => file,
         };
 
         match file.write(decomp.as_slice()) {
-            Err(why) => panic!("Couldn't write to {}: {}", path.display(), why),
+            Err(why) => panic!("Couldn't write to {}: {:?}", path.display(), why),
             Ok(_) => {},
         };
     }
@@ -527,7 +527,7 @@ mod tests {
     impl Drop for RemovingPath {
         fn drop(&mut self) {
             match fs::unlink(&self.underlying) {
-                Err(why) => println!("Couldn't remove temp file: {}", why),
+                Err(why) => println!("Couldn't remove temp file: {:?}", why),
                 Ok(_) => {},
             };
         }
@@ -564,7 +564,7 @@ mod tests {
 
         with_test_file(HELLO_CDB, "basic.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => panic!("Could not open CDB: {}", why),
+                Err(why) => panic!("Could not open CDB: {:?}", why),
                 Ok(c) => c,
             };
 
@@ -590,12 +590,12 @@ mod tests {
     fn test_find_not_found() {
         with_test_file(HELLO_CDB, "notfound.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => panic!("Could not open CDB: {}", why),
+                Err(why) => panic!("Could not open CDB: {:?}", why),
                 Ok(c) => c,
             };
             match c.find("bad".as_bytes()) {
                 None => {}
-                Some(val) => panic!("Found unexpected value: {}", val),
+                Some(val) => panic!("Found unexpected value: {:?}", val),
             };
         });
     }
@@ -604,7 +604,7 @@ mod tests {
     fn test_iteration() {
         with_test_file(HELLO_CDB, "iter.cdb", |path| {
             let mut c = match Cdb::open(path) {
-                Err(why) => panic!("Could not open CDB: {}", why),
+                Err(why) => panic!("Could not open CDB: {:?}", why),
                 Ok(c) => c,
             };
 
@@ -638,7 +638,7 @@ mod tests {
 
         match c {
             Ok(_) => {},
-            Err(why) => panic!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {:?}", why),
         }
 
         assert!(ran);
@@ -655,18 +655,18 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => panic!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {:?}", why),
             }
 
             match creator.exists(b"notexisting") {
                 Ok(v) => assert!(!v),
-                Err(why) => panic!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {:?}", why),
             }
         });
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => panic!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {:?}", why),
         };
 
         let res = match c.find(b"foo") {
@@ -688,7 +688,7 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => panic!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {:?}", why),
             }
 
             let r = creator.remove(b"foo", false);
@@ -696,18 +696,18 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(!v),
-                Err(why) => panic!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {:?}", why),
             }
         });
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => panic!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {:?}", why),
         };
 
         match c.find(b"foo") {
             None => {},
-            Some(val) => panic!("Found value for 'foo' when not expected: {}", val),
+            Some(val) => panic!("Found value for 'foo' when not expected: {:?}", val),
         };
     }
 
@@ -722,7 +722,7 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => panic!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {:?}", why),
             }
 
             let r = creator.put(b"foo", b"baz", ffi::CdbPutMode::Insert);
@@ -730,13 +730,13 @@ mod tests {
 
             match creator.exists(b"foo") {
                 Ok(v) => assert!(v),
-                Err(why) => panic!("Could not check: {}", why),
+                Err(why) => panic!("Could not check: {:?}", why),
             }
         });
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => panic!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {:?}", why),
         };
 
         // The 'insert' operation should have only inserted if it didn't exist,
@@ -760,10 +760,10 @@ mod tests {
         let _ = Cdb::new(&path, |&mut: creator| {
             b.iter(|&mut:| {
                 let cnt_str = ctr.fetch_add(1, Ordering::SeqCst).to_string();
-                let mut key = String::from_str("key");
+                let mut key = "key".to_string();
                 key.push_str(cnt_str.as_slice());
 
-                let mut val = String::from_str("val");
+                let mut val = "val".to_string();
                 val.push_str(cnt_str.as_slice());
 
                 let _ = creator.add(key.as_bytes(), val.as_bytes());
@@ -783,7 +783,7 @@ mod tests {
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => panic!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {:?}", why),
         };
 
         b.iter(|&mut:| {
@@ -803,7 +803,7 @@ mod tests {
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => panic!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {:?}", why),
         };
 
         b.iter(|| {
@@ -823,7 +823,7 @@ mod tests {
 
         let mut c = match res {
             Ok(c) => c,
-            Err(why) => panic!("Could not create: {}", why),
+            Err(why) => panic!("Could not create: {:?}", why),
         };
 
         b.iter(|| {
