@@ -88,7 +88,7 @@ pub mod ffi {
      * inserting a key into a database where the key already exists.
      */
     #[repr(C)]
-    #[derive(Copy, Show, PartialEq, Eq)]
+    #[derive(Copy, Debug, PartialEq, Eq)]
     pub enum CdbPutMode {
         /**
          * No duplicate checking will be performed.  This is the same as just

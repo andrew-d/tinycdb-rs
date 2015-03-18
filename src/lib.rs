@@ -17,8 +17,9 @@
 #![warn(missing_docs)]
 #![warn(non_upper_case_globals)]
 #![warn(unused_qualifications)]
-#![feature(slicing_syntax)]
 #![feature(unsafe_destructor)]
+
+#![feature(std_misc, core, test)]
 
 extern crate libc;
 

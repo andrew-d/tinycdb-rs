@@ -13,6 +13,9 @@ license = "MIT"
 
 build = "build.rs"
 
-[[bin]]
-name = "encode"
-path = "util/encode.rs"
+[dependencies]
+libc = "*"
+
+[dev-dependencies]
+rustc-serialize = "*"
+lz4 = "*"

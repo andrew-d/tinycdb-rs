@@ -1,9 +1,12 @@
 use std;
-use std::borrow::IntoCow;
+use std::borrow::{Cow, IntoCow};
 use std::mem::transmute;
 use std::path::Path;
 use std::raw::Slice;
-use std::borrow::Cow;
+use std::ffi::AsOsStr;
+
+// TODO: windows?
+use std::os::unix::OsStrExt;
 
 use libc::{c_int, c_uint, c_void};
 use libc::funcs::posix88::fcntl::open;
@@ -16,30 +19,27 @@ pub use ffi::ffi::CdbPutMode;
 use ffi::ffi;
 
 /// Kinds of errors that can be encountered.
-#[derive(Show)]
+#[derive(Debug)]
 pub enum CdbErrorKind {
     /// An error resulting from an underlying I/O error.
-    IoError(std::io::IoError),
+    IoError(std::io::Error),
 
     // TODO: Split up actual I/O errors from errors that TinyCDB will return
     // in errno.
 }
 
-// This isn't in std any more
-type SendStr = Cow<'static, String, str>;
-
 /// Our error type
-#[derive(Show)]
+#[derive(Debug)]
 pub struct CdbError {
     kind: CdbErrorKind,
-    message: SendStr,
+    message: Cow<'static, str>,
 }
 
 impl CdbError {
     /**
      * Create a new CdbError from the given kind and message.
      */
-    pub fn new<T: IntoCow<'static, String, str>>(msg: T, kind: CdbErrorKind) -> CdbError {
+    pub fn new<T: IntoCow<'static, str>>(msg: T, kind: CdbErrorKind) -> CdbError {
         CdbError {
             kind: kind,
             message: msg.into_cow(),
@@ -50,8 +50,8 @@ impl CdbError {
      * Create a new CdbError from the current errno.
      * Note: deliberately not public.
      */
-    fn new_from_errno<T: IntoCow<'static, String, str>>(msg: T) -> CdbError {
-        CdbError::new(msg, CdbErrorKind::IoError(std::io::IoError::last_error()))
+    fn new_from_errno<T: IntoCow<'static, str>>(msg: T) -> CdbError {
+        CdbError::new(msg, CdbErrorKind::IoError(std::io::Error::last_os_error()))
     }
 }
 
@@ -60,7 +60,7 @@ pub type CdbResult<T> = Result<T, CdbError>;
 
 /// A `CdbIterator` allows iterating over all the keys in a CDB database.
 pub struct CdbIterator<'a> {
-    underlying: &'a mut Cdb<'a>,
+    underlying: &'a mut Cdb,
     cptr: c_uint,
 }
 
@@ -119,30 +119,24 @@ impl<'a> Iterator for CdbIterator<'a> {
 }
 
 // Convert a Path instance to a C-style string
-fn path_as_c_str<F, T>(path: &Path, f: F) -> T
+fn path_as_c_str<T, F>(path: &Path, f: F) -> T
     where F: Fn(*const i8) -> T
 {
-    // First, convert the path to a vector...
-    let mut pvec = path.as_vec().to_vec();
+    // Convert to an OsStr
+    let ostr = path.as_os_str();
+    let cstring = ostr.to_cstring().unwrap();
 
-    // ... and ensure that it's null-terminated.
-    if pvec[pvec.len() - 1] != 0 {
-        pvec.push(0);
-    }
-
-    // Now, call the function with the new path pointer.
-    // This also returns what the function does.
-    f(pvec.as_ptr() as *const i8)
+    f(cstring.as_ptr() as *const i8)
 }
 
 
 /// The `Cdb` struct represents an open instance of a CDB database.
-pub struct Cdb<'a> {
+pub struct Cdb {
     cdb: ffi::cdb,
     fd: c_int,
 }
 
-impl<'a> Cdb<'a> {
+impl Cdb {
     /**
      * `open(path)` will open the CDB database at the given file path,
      * returning either the `CDB` struct or an error indicating why the
@@ -177,7 +171,7 @@ impl<'a> Cdb<'a> {
      * returns, the database can no longer be updated.  The now-open database
      * instance is then returned.
      */
-    pub fn new<F>(path: &Path, mut create: F) -> CdbResult<Box<Cdb<'a>>>
+    pub fn new<F>(path: &Path, mut create: F) -> CdbResult<Box<Cdb>>
         where F: FnMut(&mut CdbCreator)
     {
         // This is its own scope because we want it to be closed before trying
@@ -218,7 +212,7 @@ impl<'a> Cdb<'a> {
      * since it is possible to have multiple records with the same key, `find`
      * will only return the value of the first key.
      */
-    pub fn find(&'a mut self, key: &[u8]) -> Option<&'a [u8]> {
+    pub fn find(&mut self, key: &[u8]) -> Option<&[u8]> {
         let res = unsafe {
             ffi::cdb_find(
                 self.cdb_mut_ptr(),
@@ -284,7 +278,7 @@ impl<'a> Cdb<'a> {
      * `iter()` returns an iterator over all the keys in the database.  Only
      * one iterator for a database can be active at a time.
      */
-    pub fn iter<'s>(&'s mut self) -> CdbIterator<'s> {
+    pub fn iter<'i>(&'i mut self) -> CdbIterator<'i> {
         // Need to get around the fact that we're borrowing self as mutable
         // twice - specifically, once for the CdbIterator, and once to pass to
         // cdb_seqinit.
@@ -306,8 +300,7 @@ impl<'a> Cdb<'a> {
     }
 }
 
-#[unsafe_destructor]
-impl<'a> Drop for Cdb<'a> {
+impl Drop for Cdb {
     fn drop(&mut self) {
         unsafe { close(self.fd) };
     }
@@ -468,14 +461,15 @@ impl Drop for CdbCreator {
 
 #[cfg(test)]
 mod tests {
-    extern crate flate;
-    extern crate serialize;
+    extern crate lz4;
+    extern crate "rustc-serialize" as serialize;
     extern crate test;
 
-    use std::io::{File, fs};
-    use std::path::Path;
+    use std::borrow::ToOwned;
+    use std::fs::{self, File};
+    use std::io::{Read, Write};
+    use std::path::{Path, PathBuf};
 
-    use self::flate::inflate_bytes;
     use self::serialize::base64::FromBase64;
     use self::test::Bencher;
 
@@ -488,9 +482,12 @@ mod tests {
             Err(why) => panic!("Could not decode base64: {:?}", why),
             Ok(val) => val,
         };
-        let decomp = match inflate_bytes(raw.as_slice()) {
-            None => panic!("Could not inflate bytes: {:?}"),
-            Some(val) => val,
+
+        let mut decomp = Vec::new();
+        let mut decoder = lz4::Decoder::new(&*raw).unwrap();
+        match decoder.read_to_end(&mut decomp) {
+            Err(why) => panic!("Could not decompress bytes: {:?}", why),
+            Ok(_) => {},
         };
 
         let mut file = match File::create(path) {
@@ -507,26 +504,20 @@ mod tests {
     // Helper to remove test files after a test is finished, even if the test
     // panic!()s
     struct RemovingPath {
-        underlying: Path,
+        underlying: PathBuf,
     }
 
     impl RemovingPath {
         pub fn new(p: &Path) -> RemovingPath {
             RemovingPath {
-                underlying: p.clone(),
+                underlying: p.to_owned(),
             }
-        }
-
-        #[allow(dead_code)]
-        pub fn as_str(&self) -> &str {
-            // Want to panic here, if we're in a test
-            self.underlying.as_str().unwrap()
         }
     }
 
     impl Drop for RemovingPath {
         fn drop(&mut self) {
-            match fs::unlink(&self.underlying) {
+            match fs::remove_file(&self.underlying) {
                 Err(why) => println!("Couldn't remove temp file: {:?}", why),
                 Ok(_) => {},
             };
@@ -544,7 +535,7 @@ mod tests {
         where F: FnMut(&Path)
     {
         let path = Path::new(name);
-        with_remove_file(&path, |&mut: path| {
+        with_remove_file(&path, |path| {
             decompress_and_write(input, path);
             f(path);
         });
@@ -554,8 +545,9 @@ mod tests {
     //      "one" --> "Hello"
     //      "two" --> "Goodbye"
     static HELLO_CDB: &'static [u8] = (
-        b"7dIxCoAwDAXQoohCF8/QzdUjuOgdXETMVswiiKNTr20qGdydWn7g8/ghY1xj3nHwt4XY\
-          a4cwNeP/DtohhPlbSioJ7zSR9xx7LTlOHpm39aJuCbbV6+/cc7BG9g8="
+        b"BCJNGERAXl4AAAAxIggAAQAPCAD/MlMCAAAAMlABDwgA//+jAMACE0LAAg8IAP///9jw\
+          AQMAAAAFAAAAb25lSGVsbG8QAPMEBwAAAHR3b0dvb2RieWUpYIcLEBYECAIAgIFbhwsA\
+          CAAAAAAAAAXW/+Q="
     );
 
     #[test]
@@ -572,7 +564,7 @@ mod tests {
                 None => panic!("Could not find 'one' in CDB (find_mut)"),
                 Some(val) => val,
             };
-            assert_eq!(res.as_slice(), b"Hello");
+            assert_eq!(&*res, b"Hello");
 
             let res = match c.find(b"one") {
                 None => panic!("Could not find 'one' in CDB (find)"),
@@ -743,7 +735,7 @@ mod tests {
         // and since it did, the value is 'bar'
         match c.find(b"foo") {
             None => panic!("Could not find 'foo' in CDB"),
-            Some(val) => assert_eq!(val.as_slice(), b"bar"),
+            Some(val) => assert_eq!(&*val, b"bar"),
         };
     }
 
@@ -757,8 +749,8 @@ mod tests {
         let path = Path::new("add_bench.cdb");
         let _rem = RemovingPath::new(&path);
 
-        let _ = Cdb::new(&path, |&mut: creator| {
-            b.iter(|&mut:| {
+        let _ = Cdb::new(&path, |creator| {
+            b.iter(|| {
                 let cnt_str = ctr.fetch_add(1, Ordering::SeqCst).to_string();
                 let mut key = "key".to_string();
                 key.push_str(cnt_str.as_slice());
@@ -786,7 +778,7 @@ mod tests {
             Err(why) => panic!("Could not create: {:?}", why),
         };
 
-        b.iter(|&mut:| {
+        b.iter(|| {
             test::black_box(c.find(b"foo"));
         });
     }
