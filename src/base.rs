@@ -6,7 +6,7 @@ use std::raw::Slice;
 use std::ffi::AsOsStr;
 
 // TODO: windows?
-use std::os::unix::OsStrExt;
+use std::os::unix::ffi::OsStrExt;
 
 use libc::{c_int, c_uint, c_void};
 use libc::funcs::posix88::fcntl::open;
