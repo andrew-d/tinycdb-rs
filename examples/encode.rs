@@ -4,7 +4,7 @@
 
 
 extern crate lz4;
-extern crate "rustc-serialize" as serialize;
+extern crate rustc_serialize as serialize;
 
 use std::fs::File;
 use std::io::{Read, Write};

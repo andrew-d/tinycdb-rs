@@ -19,7 +19,8 @@
 #![warn(unused_qualifications)]
 #![feature(unsafe_destructor)]
 
-#![feature(std_misc, core, test)]
+#![feature(std_misc, core, into_cow)]
+#![cfg_attr(test, feature(test))]
 
 extern crate libc;
 

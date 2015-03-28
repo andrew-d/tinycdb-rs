@@ -102,7 +102,7 @@ impl<'a> Iterator for CdbIterator<'a> {
     fn next(&mut self) -> Option<(&'a [u8], &'a [u8])> {
         let ret = unsafe {
             ffi::cdb_seqnext(
-                &mut self.cptr as *mut c_uint,
+                &mut self.cptr,
                 self.underlying.cdb_mut_ptr(),
             )
         };
@@ -126,7 +126,7 @@ fn path_as_c_str<T, F>(path: &Path, f: F) -> T
     let ostr = path.as_os_str();
     let cstring = ostr.to_cstring().unwrap();
 
-    f(cstring.as_ptr() as *const i8)
+    f(cstring.as_ptr())
 }
 
 
@@ -198,12 +198,12 @@ impl Cdb {
 
     #[inline]
     unsafe fn cdb_ptr(&self) -> *const ffi::cdb {
-        &self.cdb as *const ffi::cdb
+        &self.cdb
     }
 
     #[inline]
     unsafe fn cdb_mut_ptr(&mut self) -> *mut ffi::cdb {
-        &mut self.cdb as *mut ffi::cdb
+        &mut self.cdb
     }
 
     /**
@@ -290,10 +290,7 @@ impl Cdb {
         };
 
         unsafe {
-            ffi::cdb_seqinit(
-                &mut iter.cptr as *mut c_uint,
-                cdbp,
-            );
+            ffi::cdb_seqinit(&mut iter.cptr, cdbp);
         }
 
         iter
@@ -347,7 +344,7 @@ impl CdbCreator {
 
     #[inline]
     fn cdbm_mut_ptr(&mut self) -> *mut ffi::cdb_make {
-        &mut self.cdbm as *mut ffi::cdb_make
+        &mut self.cdbm
     }
 
     fn finalize(&mut self) {
@@ -462,7 +459,7 @@ impl Drop for CdbCreator {
 #[cfg(test)]
 mod tests {
     extern crate lz4;
-    extern crate "rustc-serialize" as serialize;
+    extern crate rustc_serialize as serialize;
     extern crate test;
 
     use std::borrow::ToOwned;
