@@ -29,5 +29,5 @@ fn main() {
     fs::copy(&built_path, &output_path).unwrap();
 
     // Tell Rust about what we link to
-    println!("cargo:rustc-flags=-L {} -l cdb:static", out_dir);
+    println!("cargo:rustc-flags=-L {} -l static=cdb", out_dir);
 }

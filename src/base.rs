@@ -463,6 +463,7 @@ mod tests {
     extern crate test;
 
     use std::borrow::ToOwned;
+    use std::convert::AsRef;
     use std::fs::{self, File};
     use std::io::{Read, Write};
     use std::path::{Path, PathBuf};
@@ -492,7 +493,7 @@ mod tests {
             Ok(file) => file,
         };
 
-        match file.write(decomp.as_slice()) {
+        match file.write(decomp.as_ref()) {
             Err(why) => panic!("Couldn't write to {}: {:?}", path.display(), why),
             Ok(_) => {},
         };
@@ -750,10 +751,10 @@ mod tests {
             b.iter(|| {
                 let cnt_str = ctr.fetch_add(1, Ordering::SeqCst).to_string();
                 let mut key = "key".to_string();
-                key.push_str(cnt_str.as_slice());
+                key.push_str(cnt_str.as_ref());
 
                 let mut val = "val".to_string();
-                val.push_str(cnt_str.as_slice());
+                val.push_str(cnt_str.as_ref());
 
                 let _ = creator.add(key.as_bytes(), val.as_bytes());
             })
