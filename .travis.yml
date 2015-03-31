@@ -6,6 +6,6 @@ env:
 script:
   - cargo build --verbose
   - cargo test --verbose
-  - cargo doc --no-deps
+  - cargo doc
 after_script:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
