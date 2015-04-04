@@ -90,11 +90,11 @@ pub struct cdb_make {
  * inserting a key into a database where the key already exists.
  */
 #[repr(C)]
-#[derive(Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CdbPutMode {
     /**
      * No duplicate checking will be performed.  This is the same as just
-     * calling `add()`.
+     * calling `CdbCreator.add()`.
      */
     Add      = 0,
 
@@ -123,7 +123,7 @@ pub enum CdbPutMode {
 
     /**
      * If the key already exists in the database, zero it out before adding
-     * this key/value pair.  See the comments on `remove()` for some
+     * this key/value pair.  See the comments on `CdbCreator.remove()` for some
      * caveats regarding zeroing out keys in the database.
      */
     Replace0 = 4,
