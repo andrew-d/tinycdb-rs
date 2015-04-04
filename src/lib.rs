@@ -19,8 +19,8 @@
 #![warn(unused_qualifications)]
 #![feature(unsafe_destructor)]
 
-#![feature(std_misc, core, into_cow)]
-#![cfg_attr(test, feature(test, convert))]
+#![feature(core, into_cow, convert)]
+#![cfg_attr(test, feature(test))]
 
 extern crate libc;
 extern crate tinycdb_sys as ffi;
@@ -29,10 +29,6 @@ use std::borrow::{Cow, IntoCow};
 use std::mem::transmute;
 use std::path::Path;
 use std::raw::Slice;
-use std::ffi::AsOsStr;
-
-// TODO: windows?
-use std::os::unix::ffi::OsStrExt;
 
 use libc::{c_int, c_uint, c_void};
 use libc::funcs::posix88::fcntl::open;
@@ -765,8 +761,8 @@ mod tests {
 
     #[bench]
     fn bench_add(b: &mut Bencher) {
-        use std::sync::atomic::{AtomicUint, Ordering};
-        let ctr = AtomicUint::new(0);
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let ctr = AtomicUsize::new(0);
 
         let path = Path::new("add_bench.cdb");
         let _rem = RemovingPath::new(&path);

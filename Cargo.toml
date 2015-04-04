@@ -1,7 +1,7 @@
 [package]
 
 name = "tinycdb"
-version = "0.0.4"
+version = "0.0.5"
 authors = ["Andrew Dunham <andrew@du.nham.ca>"]
 
 description = "Bindings to the TinyCDB C library (http://www.corpit.ru/mjt/tinycdb.html)"
@@ -13,7 +13,7 @@ license = "MIT"
 
 [dependencies]
 libc = "*"
-tinycdb-sys = "0.0.1"
+tinycdb-sys = "0.0.2"
 
 [dev-dependencies]
 rustc-serialize = "*"
