@@ -1,5 +1,10 @@
-language: rust
 sudo: false
+language: rust
+rust:
+  - nightly
+os:
+  - osx
+  - linux
 env:
   global:
     - secure: k5APKefnFOUA4CtXX2KubOSzyMKAeG3w8N2zErXcZzvCELjO6cFmGTcIyksFh0cusmW//hzG0v3cQ0CvXNdvNaA6T0NXVKhsJXrsoJ9qhNdwkwcnhKPyoZP2laPWu5IRmQh8inByHY0jVRc907UpWrOt2Rzy36JcD5ARRiZXxVA=
