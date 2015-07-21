@@ -17,9 +17,8 @@
 #![warn(missing_docs)]
 #![warn(non_upper_case_globals)]
 #![warn(unused_qualifications)]
-#![feature(unsafe_destructor)]
 
-#![feature(core, into_cow, convert)]
+#![feature(raw, into_cow, convert)]
 #![cfg_attr(test, feature(test))]
 
 extern crate libc;
@@ -803,7 +802,7 @@ mod tests {
 
     #[bench]
     fn bench_find_mut(b: &mut Bencher) {
-        let path = Path::new("find_bench.cdb");
+        let path = Path::new("find_mut_bench.cdb");
         let _rem = RemovingPath::new(&path);
 
         let res = Cdb::new(&path, |creator| {

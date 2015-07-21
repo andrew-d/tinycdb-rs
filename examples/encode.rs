@@ -30,7 +30,7 @@ fn main() {
 
     let mut compressed = Vec::new();
     {
-        let mut encoder = lz4::Encoder::new(&mut compressed, 0).unwrap();
+        let mut encoder = lz4::EncoderBuilder::new().build(&mut compressed).unwrap();
         match encoder.write_all(&*buf) {
             Err(why) => panic!("Could not compress: {:?}", why),
             Ok(_) => {},
