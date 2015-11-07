@@ -1,16 +1,48 @@
 sudo: false
 language: rust
+
+# necessary for `travis-cargo coveralls --no-sudo`
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+
+# TODO: figure out how to disable doc upload twice, then enable these
+##os:
+##  - osx
+##  - linux
+
 rust:
   - nightly
-os:
-  - osx
-  - linux
+  - beta
+  - stable
+
+  # Minimum version of Rust required
+  - 1.0.0
+
+before_script:
+  - |
+      pip install 'travis-cargo<0.2' --user &&
+      export PATH=$HOME/.local/bin:$PATH
+
+# The main build
+script:
+  - |
+      travis-cargo build &&
+      travis-cargo test &&
+      travis-cargo bench &&
+      travis-cargo --only stable doc
+
+after_success:
+  # Upload the documentation from the build with stable (automatically only
+  # actually runs on the master branch, not individual PRs)
+  - travis-cargo --only stable doc-upload
+
+  # measure code coverage and upload to coveralls.io
+  - travis-cargo coveralls --no-sudo
+
 env:
   global:
-    - secure: k5APKefnFOUA4CtXX2KubOSzyMKAeG3w8N2zErXcZzvCELjO6cFmGTcIyksFh0cusmW//hzG0v3cQ0CvXNdvNaA6T0NXVKhsJXrsoJ9qhNdwkwcnhKPyoZP2laPWu5IRmQh8inByHY0jVRc907UpWrOt2Rzy36JcD5ARRiZXxVA=
-script:
-  - cargo build --verbose
-  - cargo test --verbose
-  - cargo doc
-after_script:
-  - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
+    - secure: g7nRDFibj4q/nsHg+GY5tNTODOgQR6mT75dqpjr2wxHxSFvs6/s7GLV0/hQk/YqYYel7dvXA5K5to2nWj9mbF36bLmFlBVoaKfKAvFHqpinxAiyO+Z+GZKBn0R19tpO5U4lpN+kB847exUN8Lc2K/WGwSEXKsYXdLp8FwktTL2E=
