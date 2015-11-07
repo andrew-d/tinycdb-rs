@@ -1,6 +1,6 @@
 # tinycdb-rs
 
-[![Build Status](https://travis-ci.org/andrew-d/tinycdb-rs.svg?branch=master)](https://travis-ci.org/andrew-d/tinycdb-rs)
+[![Build Status](https://travis-ci.org/andrew-d/tinycdb-rs.svg?branch=master)](https://travis-ci.org/andrew-d/tinycdb-rs) [![Coverage Status](https://coveralls.io/repos/andrew-d/tinycdb-rs/badge.svg?branch=master&service=github)](https://coveralls.io/github/andrew-d/tinycdb-rs?branch=master)
 
 This project consists of Rust bindings to [tinycdb](http://www.corpit.ru/mjt/tinycdb.html),
 a small library for creating and reading constant key-value databases.
