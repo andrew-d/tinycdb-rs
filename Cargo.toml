@@ -12,7 +12,7 @@ keywords = ["bindings", "database", "cdb", "tinycdb"]
 license = "MIT"
 
 [dependencies]
-libc = "*"
+libc = "0.2"
 tinycdb-sys = "0.0.2"
 
 [dev-dependencies]

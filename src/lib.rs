@@ -30,9 +30,8 @@ use std::path::Path;
 use std::raw::Slice;
 
 use libc::{c_int, c_uint, c_void};
-use libc::funcs::posix88::fcntl::open;
-use libc::funcs::posix88::unistd::close;
-use libc::consts::os::posix88::{O_CREAT, O_EXCL, O_RDONLY, O_RDWR};
+use libc::{open, close};
+use libc::{O_CREAT, O_EXCL, O_RDONLY, O_RDWR};
 
 // Re-export the private enums
 pub use ffi::CdbPutMode;
