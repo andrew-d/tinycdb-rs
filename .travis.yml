@@ -16,11 +16,11 @@ addons:
 
 rust:
   - nightly
-  - beta
-  - stable
+  ##- beta
+  ##- stable
 
   # Minimum version of Rust required
-  - 1.0.0
+  ##- 1.0.0
 
 before_script:
   - |
@@ -33,12 +33,12 @@ script:
       travis-cargo build &&
       travis-cargo test &&
       travis-cargo bench &&
-      travis-cargo --only stable doc
+      travis-cargo --only nightly doc
 
 after_success:
   # Upload the documentation from the build with stable (automatically only
   # actually runs on the master branch, not individual PRs)
-  - travis-cargo --only stable doc-upload
+  - travis-cargo --only nightly doc-upload
 
   # measure code coverage and upload to coveralls.io
   - travis-cargo coveralls --no-sudo
