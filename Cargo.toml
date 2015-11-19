@@ -22,8 +22,8 @@ libc = "0.2"
 tinycdb-sys = "0.0.2"
 
 [dev-dependencies]
-rustc-serialize = "*"
-lz4 = "*"
+rustc-serialize = "0.3"
+lz4 = "1.9"
 
 [profile.bench]
 opt-level = 3
