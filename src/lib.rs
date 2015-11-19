@@ -18,16 +18,14 @@
 #![warn(non_upper_case_globals)]
 #![warn(unused_qualifications)]
 
-#![feature(raw, into_cow, convert)]
-#![cfg_attr(test, feature(test))]
-
 extern crate libc;
 extern crate tinycdb_sys as ffi;
 
-use std::borrow::{Cow, IntoCow};
-use std::mem::transmute;
+use std::borrow::Cow;
+use std::convert::Into;
+use std::ffi::CString;
 use std::path::Path;
-use std::raw::Slice;
+use std::slice;
 
 use libc::{c_int, c_uint, c_void};
 use libc::{open, close};
@@ -57,10 +55,12 @@ impl CdbError {
     /**
      * Create a new CdbError from the given kind and message.
      */
-    pub fn new<T: IntoCow<'static, str>>(msg: T, kind: CdbErrorKind) -> CdbError {
+    pub fn new<T>(msg: T, kind: CdbErrorKind) -> CdbError
+    where T: Into<Cow<'static, str>>
+    {
         CdbError {
             kind: kind,
-            message: msg.into_cow(),
+            message: msg.into(),
         }
     }
 
@@ -68,7 +68,9 @@ impl CdbError {
      * Create a new CdbError from the current errno.
      * Note: deliberately not public.
      */
-    fn new_from_errno<T: IntoCow<'static, str>>(msg: T) -> CdbError {
+    fn new_from_errno<T>(msg: T) -> CdbError
+    where T: Into<Cow<'static, str>>
+    {
         CdbError::new(msg, CdbErrorKind::IoError(std::io::Error::last_os_error()))
     }
 }
@@ -93,10 +95,7 @@ impl<'a> CdbIterator<'a> {
             self.underlying.cdb.cdb_keypos(),
         ) as *const u8;
 
-        transmute(Slice {
-            data: ptr,
-            len:  len as usize,
-        })
+        slice::from_raw_parts(ptr, len as usize)
     }
 
     unsafe fn get_data_slice(&self) -> &'a [u8] {
@@ -107,10 +106,7 @@ impl<'a> CdbIterator<'a> {
             self.underlying.cdb.cdb_datapos(),
         ) as *const u8;
 
-        transmute(Slice {
-            data: ptr,
-            len:  len as usize,
-        })
+        slice::from_raw_parts(ptr, len as usize)
     }
 }
 
@@ -142,7 +138,8 @@ fn path_as_c_str<T, F>(path: &Path, f: F) -> T
 {
     // Convert to an OsStr
     let ostr = path.as_os_str();
-    let cstring = ostr.to_cstring().unwrap();
+    let str = ostr.to_str().unwrap();
+    let cstring = CString::new(str).unwrap();
 
     f(cstring.as_ptr())
 }
@@ -252,10 +249,7 @@ impl Cdb {
         };
 
         unsafe {
-            transmute(Slice {
-                data: ptr,
-                len:  len as usize,
-            })
+            Some(slice::from_raw_parts(ptr, len as usize))
         }
     }
 
