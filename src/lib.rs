@@ -472,7 +472,6 @@ impl Drop for CdbCreator {
 mod tests {
     extern crate lz4;
     extern crate rustc_serialize as serialize;
-    extern crate test;
 
     use std::borrow::ToOwned;
     use std::convert::AsRef;
@@ -481,7 +480,6 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use self::serialize::base64::FromBase64;
-    use self::test::Bencher;
 
     use super::Cdb;
     use super::ffi;
@@ -747,89 +745,5 @@ mod tests {
             None => panic!("Could not find 'foo' in CDB"),
             Some(val) => assert_eq!(&*val, b"bar"),
         };
-    }
-
-    // --------------------------------------------------
-
-    #[bench]
-    fn bench_add(b: &mut Bencher) {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        let ctr = AtomicUsize::new(0);
-
-        let path = Path::new("add_bench.cdb");
-        let _rem = RemovingPath::new(&path);
-
-        let _ = Cdb::new(&path, |creator| {
-            b.iter(|| {
-                let cnt_str = ctr.fetch_add(1, Ordering::SeqCst).to_string();
-                let mut key = "key".to_string();
-                key.push_str(cnt_str.as_ref());
-
-                let mut val = "val".to_string();
-                val.push_str(cnt_str.as_ref());
-
-                let _ = creator.add(key.as_bytes(), val.as_bytes());
-            })
-        });
-    }
-
-    #[bench]
-    fn bench_find(b: &mut Bencher) {
-        let path = Path::new("find_bench.cdb");
-        let _rem = RemovingPath::new(&path);
-
-        let res = Cdb::new(&path, |creator| {
-            let r = creator.add(b"foo", b"bar");
-            assert!(r.is_ok());
-        });
-
-        let mut c = match res {
-            Ok(c) => c,
-            Err(why) => panic!("Could not create: {:?}", why),
-        };
-
-        b.iter(|| {
-            test::black_box(c.find(b"foo"));
-        });
-    }
-
-    #[bench]
-    fn bench_find_mut(b: &mut Bencher) {
-        let path = Path::new("find_mut_bench.cdb");
-        let _rem = RemovingPath::new(&path);
-
-        let res = Cdb::new(&path, |creator| {
-            let r = creator.add(b"foo", b"bar");
-            assert!(r.is_ok());
-        });
-
-        let mut c = match res {
-            Ok(c) => c,
-            Err(why) => panic!("Could not create: {:?}", why),
-        };
-
-        b.iter(|| {
-            test::black_box(c.find_mut(b"foo"));
-        });
-    }
-
-    #[bench]
-    fn bench_exists(b: &mut Bencher) {
-        let path = Path::new("exists_bench.cdb");
-        let _rem = RemovingPath::new(&path);
-
-        let res = Cdb::new(&path, |creator| {
-            let r = creator.add(b"foo", b"bar");
-            assert!(r.is_ok());
-        });
-
-        let mut c = match res {
-            Ok(c) => c,
-            Err(why) => panic!("Could not create: {:?}", why),
-        };
-
-        b.iter(|| {
-            test::black_box(c.exists(b"foo"));
-        });
     }
 }

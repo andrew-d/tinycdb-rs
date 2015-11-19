@@ -11,6 +11,12 @@ readme = "README.md"
 keywords = ["bindings", "database", "cdb", "tinycdb"]
 license = "MIT"
 
+[[bench]]
+name = "bench"
+path = "./benches/bench.rs"
+test = false
+bench = true
+
 [dependencies]
 libc = "0.2"
 tinycdb-sys = "0.0.2"
@@ -18,3 +24,7 @@ tinycdb-sys = "0.0.2"
 [dev-dependencies]
 rustc-serialize = "*"
 lz4 = "*"
+
+[profile.bench]
+opt-level = 3
+debug = true
