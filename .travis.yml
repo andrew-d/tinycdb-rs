@@ -16,8 +16,8 @@ addons:
 
 rust:
   - nightly
-  ##- beta
-  ##- stable
+  - beta
+  - stable
 
   # Minimum version of Rust required
   ##- 1.0.0
