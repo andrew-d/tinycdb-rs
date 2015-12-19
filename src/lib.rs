@@ -24,6 +24,7 @@ extern crate tinycdb_sys as ffi;
 use std::borrow::Cow;
 use std::convert::Into;
 use std::ffi::CString;
+use std::mem;
 use std::path::Path;
 use std::slice;
 
@@ -80,7 +81,7 @@ pub type CdbResult<T> = Result<T, CdbError>;
 
 /// A `CdbIterator` allows iterating over all the keys in a CDB database.
 pub struct CdbIterator<'a> {
-    underlying: &'a mut Cdb,
+    underlying: &'a Cdb,
     cptr: c_uint,
 }
 
@@ -166,7 +167,7 @@ impl Cdb {
             return Err(CdbError::new_from_errno("Error opening file"));
         }
 
-        let mut ret = Box::new(Cdb {
+        let ret = Box::new(Cdb {
             fd: fd,
             cdb: unsafe { std::mem::uninitialized() },
         });
@@ -217,8 +218,8 @@ impl Cdb {
     }
 
     #[inline]
-    unsafe fn cdb_mut_ptr(&mut self) -> *mut ffi::cdb {
-        &mut self.cdb
+    unsafe fn cdb_mut_ptr(&self) -> *mut ffi::cdb {
+        mem::transmute(&self.cdb)
     }
 
     /**
@@ -227,7 +228,7 @@ impl Cdb {
      * since it is possible to have multiple records with the same key, `find`
      * will only return the value of the first key.
      */
-    pub fn find(&mut self, key: &[u8]) -> Option<&[u8]> {
+    pub fn find(&self, key: &[u8]) -> Option<&[u8]> {
         let res = unsafe {
             ffi::cdb_find(
                 self.cdb_mut_ptr(),
@@ -259,7 +260,7 @@ impl Cdb {
      * since it is possible to have multiple records with the same key,
      * `find_mut` will only return the value of the first key.
      */
-    pub fn find_mut(&mut self, key: &[u8]) -> Option<Vec<u8>> {
+    pub fn find_mut(&self, key: &[u8]) -> Option<Vec<u8>> {
         match self.find(key) {
             Some(val) => Some(val.to_vec()),
             None      => None,
@@ -271,7 +272,7 @@ impl Cdb {
      * essentially the same as the `find(key)` call, except that it does not
      * allocate space for the returned value, and thus may be faster.
      */
-    pub fn exists(&mut self, key: &[u8]) -> bool {
+    pub fn exists(&self, key: &[u8]) -> bool {
         let res = unsafe {
             ffi::cdb_find(
                 self.cdb_mut_ptr(),
@@ -290,7 +291,7 @@ impl Cdb {
      * `iter()` returns an iterator over all the keys in the database.  Only
      * one iterator for a database can be active at a time.
      */
-    pub fn iter<'i>(&'i mut self) -> CdbIterator<'i> {
+    pub fn iter<'i>(&'i self) -> CdbIterator<'i> {
         // Need to get around the fact that we're borrowing self as mutable
         // twice - specifically, once for the CdbIterator, and once to pass to
         // cdb_seqinit.
@@ -316,6 +317,7 @@ impl Drop for Cdb {
 }
 
 unsafe impl Send for Cdb {}
+unsafe impl Sync for Cdb {}
 
 /// The `CdbCreator` struct is used while building a new CDB instance.
 pub struct CdbCreator {
@@ -472,6 +474,7 @@ impl Drop for CdbCreator {
 
 #[cfg(test)]
 mod tests {
+    extern crate crossbeam;
     extern crate lz4;
     extern crate rustc_serialize as serialize;
 
@@ -565,7 +568,7 @@ mod tests {
         let mut ran = false;
 
         with_test_file(HELLO_CDB, "basic.cdb", |path| {
-            let mut c = match Cdb::open(path) {
+            let c = match Cdb::open(path) {
                 Err(why) => panic!("Could not open CDB: {:?}", why),
                 Ok(c) => c,
             };
@@ -591,7 +594,7 @@ mod tests {
     #[test]
     fn test_find_not_found() {
         with_test_file(HELLO_CDB, "notfound.cdb", |path| {
-            let mut c = match Cdb::open(path) {
+            let c = match Cdb::open(path) {
                 Err(why) => panic!("Could not open CDB: {:?}", why),
                 Ok(c) => c,
             };
@@ -605,7 +608,7 @@ mod tests {
     #[test]
     fn test_iteration() {
         with_test_file(HELLO_CDB, "iter.cdb", |path| {
-            let mut c = match Cdb::open(path) {
+            let c = match Cdb::open(path) {
                 Err(why) => panic!("Could not open CDB: {:?}", why),
                 Ok(c) => c,
             };
@@ -666,7 +669,7 @@ mod tests {
             }
         });
 
-        let mut c = match res {
+        let c = match res {
             Ok(c) => c,
             Err(why) => panic!("Could not create: {:?}", why),
         };
@@ -702,7 +705,7 @@ mod tests {
             }
         });
 
-        let mut c = match res {
+        let c = match res {
             Ok(c) => c,
             Err(why) => panic!("Could not create: {:?}", why),
         };
@@ -736,7 +739,7 @@ mod tests {
             }
         });
 
-        let mut c = match res {
+        let c = match res {
             Ok(c) => c,
             Err(why) => panic!("Could not create: {:?}", why),
         };
@@ -761,7 +764,7 @@ mod tests {
             assert!(r.is_ok());
         });
 
-        let mut c = match res {
+        let c = match res {
             Ok(c) => c,
             Err(why) => panic!("Could not create: {:?}", why),
         };
@@ -774,5 +777,43 @@ mod tests {
         });
 
         t.join().unwrap();
+    }
+
+    #[test]
+    fn test_sync() {
+        let path = Path::new("sync.cdb");
+        let _rem = RemovingPath::new(&path);
+
+        let res = Cdb::new(&path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+        });
+
+        let c = match res {
+            Ok(c) => c,
+            Err(why) => panic!("Could not create: {:?}", why),
+        };
+
+        let cr = &c;
+        crossbeam::scope(|scope| {
+            scope.spawn(|| {
+                match cr.find(b"foo") {
+                    None => panic!("[1] Could not find 'foo' in CDB"),
+                    Some(val) => assert_eq!(&*val, b"bar"),
+                };
+            });
+
+            scope.spawn(|| {
+                match cr.find(b"foo") {
+                    None => panic!("[2] Could not find 'foo' in CDB"),
+                    Some(val) => assert_eq!(&*val, b"bar"),
+                };
+            });
+        });
+
+        match c.find(b"foo") {
+            None => panic!("[3] Could not find 'foo' in CDB"),
+            Some(val) => assert_eq!(&*val, b"bar"),
+        };
     }
 }

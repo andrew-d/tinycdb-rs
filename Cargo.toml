@@ -22,8 +22,9 @@ libc = "0.2"
 tinycdb-sys = "0.0.2"
 
 [dev-dependencies]
-rustc-serialize = "0.3"
+crossbeam = "0.1.5"
 lz4 = "1.9"
+rustc-serialize = "0.3"
 
 [profile.bench]
 opt-level = 3
