@@ -315,6 +315,8 @@ impl Drop for Cdb {
     }
 }
 
+unsafe impl Send for Cdb {}
+
 /// The `CdbCreator` struct is used while building a new CDB instance.
 pub struct CdbCreator {
     cdbm: ffi::cdb_make,
@@ -745,5 +747,32 @@ mod tests {
             None => panic!("Could not find 'foo' in CDB"),
             Some(val) => assert_eq!(&*val, b"bar"),
         };
+    }
+
+    #[test]
+    fn test_send() {
+        use std::thread::spawn;
+
+        let path = Path::new("send.cdb");
+        let _rem = RemovingPath::new(&path);
+
+        let res = Cdb::new(&path, |creator| {
+            let r = creator.add(b"foo", b"bar");
+            assert!(r.is_ok());
+        });
+
+        let mut c = match res {
+            Ok(c) => c,
+            Err(why) => panic!("Could not create: {:?}", why),
+        };
+
+        let t = spawn(move || {
+            match c.find(b"foo") {
+                None => panic!("Could not find 'foo' in CDB"),
+                Some(val) => assert_eq!(&*val, b"bar"),
+            };
+        });
+
+        t.join().unwrap();
     }
 }
