@@ -1,0 +1,4 @@
+(function() {var implementors = {};
+implementors["tinycdb"] = [{"text":"impl !RefUnwindSafe for CdbError","synthetic":true,"types":[]},{"text":"impl&lt;'a&gt; RefUnwindSafe for CdbIterator&lt;'a&gt;","synthetic":true,"types":[]},{"text":"impl RefUnwindSafe for Cdb","synthetic":true,"types":[]},{"text":"impl RefUnwindSafe for CdbCreator","synthetic":true,"types":[]},{"text":"impl !RefUnwindSafe for CdbErrorKind","synthetic":true,"types":[]}];
+implementors["tinycdb_sys"] = [{"text":"impl RefUnwindSafe for cdb","synthetic":true,"types":[]},{"text":"impl RefUnwindSafe for cdb_find","synthetic":true,"types":[]},{"text":"impl RefUnwindSafe for cdb_make","synthetic":true,"types":[]},{"text":"impl RefUnwindSafe for CdbPutMode","synthetic":true,"types":[]},{"text":"impl RefUnwindSafe for CdbFindMode","synthetic":true,"types":[]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
